@@ -243,7 +243,7 @@ const Products = () => {
               </div>
 
               <div className="grid grid-cols-2 p-2 hover:bg-gray-50">
-                <div className="text-center">Využití palety (%)</div>
+                <div className="text-center">1ks zabírá (%) palety</div>
                 <div className="flex items-center justify-center gap-2">
                   {editingProduct === `${product.id}-pallet` ? (
                     <>
