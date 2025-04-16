@@ -178,13 +178,29 @@ function MainApp() {
   const renderPrice = (priceInCZK) => {
     const localPrice = convertPrice(priceInCZK, selectedCountry)
     if (localPrice.symbol === 'Kč' || currencyLoading) {
-      return `${priceInCZK} Kč`
+      return `${priceInCZK.toLocaleString('cs-CZ')} Kč`
     }
+
+    let formattedLocalPrice
+    switch (localPrice.code) {
+      case 'HUF':
+        formattedLocalPrice = `${parseInt(localPrice.value).toLocaleString('hu-HU')} ${localPrice.symbol}`
+        break
+      case 'PLN':
+        formattedLocalPrice = `${parseFloat(localPrice.value).toLocaleString('pl-PL')} ${localPrice.symbol}`
+        break
+      case 'EUR':
+        formattedLocalPrice = `${parseFloat(localPrice.value).toLocaleString('de-DE')} ${localPrice.symbol}`
+        break
+      default:
+        formattedLocalPrice = `${localPrice.value} ${localPrice.symbol}`
+    }
+
     return (
       <span>
-        {priceInCZK} Kč
+        {priceInCZK.toLocaleString('cs-CZ')} Kč
         <span className="text-gray-500 ml-1">
-          ({localPrice.value} {localPrice.symbol})
+          ({formattedLocalPrice})
         </span>
       </span>
     )

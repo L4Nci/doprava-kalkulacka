@@ -26,6 +26,19 @@ export function useCurrency() {
     return () => clearInterval(interval)
   }, [])
 
+  const formatCurrency = (value, currencyCode) => {
+    switch (currencyCode) {
+      case 'HUF':
+        return Math.round(value); // Forinty se zobrazují bez desetinných míst
+      case 'PLN':
+        return value.toFixed(2); // Zloté na 2 desetinná místa
+      case 'EUR':
+        return value.toFixed(2); // Eura na 2 desetinná místa
+      default:
+        return value.toFixed(2);
+    }
+  }
+
   const convertPrice = (priceInCZK, targetCountry) => {
     if (!rates || !targetCountry) return { value: priceInCZK, symbol: 'Kč' }
 
@@ -39,8 +52,9 @@ export function useCurrency() {
 
     const convertedValue = priceInCZK * rate
     return {
-      value: Math.round(convertedValue * 100) / 100,
+      value: formatCurrency(convertedValue, currency.code),
       symbol: currency.symbol,
+      code: currency.code,
       isLoading,
       error
     }
