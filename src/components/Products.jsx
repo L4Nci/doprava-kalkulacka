@@ -5,6 +5,13 @@ const Products = () => {
   const [products, setProducts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [editingProduct, setEditingProduct] = useState(null)
+  const [showNewProductForm, setShowNewProductForm] = useState(false)
+  const [newProduct, setNewProduct] = useState({
+    name: '',
+    items_per_box: 0,
+    palette_percentage: 0.01,
+    image_url: ''
+  })
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -42,76 +49,212 @@ const Products = () => {
     }
   }
 
+  const addNewProduct = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .insert([{
+          name: newProduct.name,
+          items_per_box: parseInt(newProduct.items_per_box),
+          palette_percentage: parseFloat(newProduct.palette_percentage) / 100,
+          image_url: newProduct.image_url
+        }])
+        .select()
+
+      if (error) throw error
+
+      setProducts([...products, data[0]])
+      setShowNewProductForm(false)
+      setNewProduct({
+        name: '',
+        items_per_box: 0,
+        palette_percentage: 0.01,
+        image_url: ''
+      })
+    } catch (err) {
+      console.error('Chyba při vytváření produktu:', err)
+    }
+  }
+
   if (isLoading) {
     return <p className="text-gray-600">Načítám produkty...</p>
   }
 
   return (
     <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Produkty</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Produkty</h2>
+        <button
+          onClick={() => setShowNewProductForm(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Přidat produkt
+        </button>
+      </div>
+
+      {showNewProductForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold mb-4">Nový produkt</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1">Název produktu</label>
+                <input
+                  type="text"
+                  value={newProduct.name}
+                  onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                  className="border p-2 w-full rounded"
+                  placeholder="např. Polštář"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-1">URL obrázku</label>
+                <input
+                  type="text"
+                  value={newProduct.image_url}
+                  onChange={(e) => setNewProduct({ ...newProduct, image_url: e.target.value })}
+                  className="border p-2 w-full rounded"
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div>
+                <label className="block mb-1">Kusů v krabici</label>
+                <input
+                  type="number"
+                  value={newProduct.items_per_box}
+                  onChange={(e) => setNewProduct({ ...newProduct, items_per_box: e.target.value })}
+                  className="border p-2 w-full rounded"
+                  min="1"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-1">Využití palety (%)</label>
+                <input
+                  type="number"
+                  value={newProduct.palette_percentage}
+                  onChange={(e) => setNewProduct({ ...newProduct, palette_percentage: e.target.value })}
+                  className="border p-2 w-full rounded"
+                  step="0.1"
+                  min="0.1"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setShowNewProductForm(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Zrušit
+              </button>
+              <button
+                onClick={addNewProduct}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                Vytvořit produkt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {products.map((product) => (
           <div key={product.id} className="border rounded-lg p-4 shadow-md bg-white">
             <img src={product.image_url} alt={product.name} className="h-32 w-full object-contain mb-3" />
-            <h3 className="text-lg font-semibold">{product.name}</h3>
+            <h3 className="text-lg font-semibold text-center mb-4">{product.name}</h3>
             
-            {editingProduct === product.id ? (
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Kusů v krabici:</span>
-                  <input
-                    type="number"
-                    value={product.items_per_box}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value)
-                      if (!isNaN(value)) {
-                        updateProduct(product.id, { items_per_box: value })
-                      }
-                    }}
-                    className="border rounded w-20 px-2 py-1 text-right"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Využití palety (%):</span>
-                  <input
-                    type="number"
-                    value={product.palette_percentage * 100}
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value)
-                      if (!isNaN(value)) {
-                        updateProduct(product.id, { palette_percentage: value / 100 })
-                      }
-                    }}
-                    className="border rounded w-20 px-2 py-1 text-right"
-                    step="0.1"
-                  />
-                </div>
-                <div className="flex justify-end mt-2">
-                  <button
-                    onClick={() => setEditingProduct(null)}
-                    className="text-blue-600 hover:text-blue-800"
-                  >
-                    Hotovo
-                  </button>
+            <div className="border rounded overflow-hidden">
+              <div className="grid grid-cols-2 bg-gray-50 p-2 border-b text-sm font-medium text-center">
+                <div>Parametr</div>
+                <div>Hodnota</div>
+              </div>
+              
+              <div className="grid grid-cols-2 p-2 border-b hover:bg-gray-50">
+                <div className="text-center">Kusů v krabici</div>
+                <div className="flex items-center justify-center gap-2">
+                  {editingProduct === `${product.id}-box` ? (
+                    <>
+                      <input
+                        type="number"
+                        value={product.items_per_box}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value)
+                          if (!isNaN(value)) {
+                            updateProduct(product.id, { items_per_box: value })
+                          }
+                        }}
+                        className="border rounded w-20 px-2 py-1 text-right"
+                      />
+                      <button
+                        onClick={() => setEditingProduct(null)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        ✓
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span>{product.items_per_box}</span>
+                      <button
+                        onClick={() => setEditingProduct(`${product.id}-box`)}
+                        className="text-gray-400 hover:text-blue-600"
+                        title="Upravit hodnotu"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-            ) : (
-              <div className="mt-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Kusů v krabici: {product.items_per_box}</span>
-                  <button
-                    onClick={() => setEditingProduct(product.id)}
-                    className="text-gray-400 hover:text-blue-600"
-                    title="Upravit hodnoty"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                    </svg>
-                  </button>
+
+              <div className="grid grid-cols-2 p-2 hover:bg-gray-50">
+                <div className="text-center">Využití palety (%)</div>
+                <div className="flex items-center justify-center gap-2">
+                  {editingProduct === `${product.id}-pallet` ? (
+                    <>
+                      <input
+                        type="number"
+                        value={(product.palette_percentage * 100).toFixed(1)}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value)
+                          if (!isNaN(value)) {
+                            updateProduct(product.id, { palette_percentage: value / 100 })
+                          }
+                        }}
+                        className="border rounded w-20 px-2 py-1 text-right"
+                        step="0.1"
+                      />
+                      <button
+                        onClick={() => setEditingProduct(null)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        ✓
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span>{(product.palette_percentage * 100).toFixed(1)}</span>
+                      <button
+                        onClick={() => setEditingProduct(`${product.id}-pallet`)}
+                        className="text-gray-400 hover:text-blue-600"
+                        title="Upravit hodnotu"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <p className="text-sm text-gray-600">Využití palety: {(product.palette_percentage * 100).toFixed(1)}%</p>
               </div>
-            )}
+            </div>
           </div>
         ))}
       </div>

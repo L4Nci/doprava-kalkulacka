@@ -6,6 +6,13 @@ const Courier = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [editingCarrier, setEditingCarrier] = useState(null)
   const [editingService, setEditingService] = useState(null)
+  const [showNewCarrierForm, setShowNewCarrierForm] = useState(false)
+  const [newCarrier, setNewCarrier] = useState({
+    name: '',
+    logo_url: '',
+    supported_countries: [],
+    services: [{ name: '', shipment_type: 'balik', price_per_unit: 0 }]
+  })
 
   useEffect(() => {
     const fetchCarriers = async () => {
@@ -64,14 +71,177 @@ const Courier = () => {
     }
   }
 
+  const addNewCarrier = async () => {
+    try {
+      const { data: carrier, error: carrierError } = await supabase
+        .from('carriers')
+        .insert([{
+          name: newCarrier.name,
+          logo_url: newCarrier.logo_url,
+          supported_countries: newCarrier.supported_countries
+        }])
+        .select()
+
+      if (carrierError) throw carrierError
+
+      const servicesWithCarrierId = newCarrier.services.map(service => ({
+        ...service,
+        carrier_id: carrier[0].id
+      }))
+
+      const { data: services, error: servicesError } = await supabase
+        .from('services')
+        .insert(servicesWithCarrierId)
+
+      if (servicesError) throw servicesError
+
+      setCarriers([...carriers, { ...carrier[0], services: services }])
+      setShowNewCarrierForm(false)
+      setNewCarrier({
+        name: '',
+        logo_url: '',
+        supported_countries: [],
+        services: [{ name: '', shipment_type: 'balik', price_per_unit: 0 }]
+      })
+    } catch (err) {
+      console.error('Chyba při vytváření dopravce:', err)
+    }
+  }
+
   if (isLoading) {
     return <p className="text-gray-600">Načítám dopravce...</p>
   }
 
   return (
     <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Dopravci</h2>
-      
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Dopravci</h2>
+        <button
+          onClick={() => setShowNewCarrierForm(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Přidat dopravce
+        </button>
+      </div>
+
+      {showNewCarrierForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full">
+            <h3 className="text-xl font-bold mb-4">Nový dopravce</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1">Název dopravce</label>
+                <input
+                  type="text"
+                  value={newCarrier.name}
+                  onChange={(e) => setNewCarrier({ ...newCarrier, name: e.target.value })}
+                  className="border p-2 w-full rounded"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-1">URL loga</label>
+                <input
+                  type="text"
+                  value={newCarrier.logo_url}
+                  onChange={(e) => setNewCarrier({ ...newCarrier, logo_url: e.target.value })}
+                  className="border p-2 w-full rounded"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-1">Podporované země</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['CZ', 'SK', 'PL', 'HU', 'DE', 'HR', 'SI'].map(country => (
+                    <label key={country} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={newCarrier.supported_countries.includes(country)}
+                        onChange={(e) => {
+                          const countries = e.target.checked
+                            ? [...newCarrier.supported_countries, country]
+                            : newCarrier.supported_countries.filter(c => c !== country)
+                          setNewCarrier({ ...newCarrier, supported_countries: countries })
+                        }}
+                        className="mr-2"
+                      />
+                      {country}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-1">Služby</label>
+                {newCarrier.services.map((service, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      placeholder="Název služby"
+                      value={service.name}
+                      onChange={(e) => {
+                        const services = [...newCarrier.services]
+                        services[index].name = e.target.value
+                        setNewCarrier({ ...newCarrier, services })
+                      }}
+                      className="border p-2 flex-1 rounded"
+                    />
+                    <select
+                      value={service.shipment_type}
+                      onChange={(e) => {
+                        const services = [...newCarrier.services]
+                        services[index].shipment_type = e.target.value
+                        setNewCarrier({ ...newCarrier, services })
+                      }}
+                      className="border p-2 rounded"
+                    >
+                      <option value="balik">Balík</option>
+                      <option value="paleta">Paleta</option>
+                    </select>
+                    <input
+                      type="number"
+                      placeholder="Cena"
+                      value={service.price_per_unit}
+                      onChange={(e) => {
+                        const services = [...newCarrier.services]
+                        services[index].price_per_unit = parseInt(e.target.value)
+                        setNewCarrier({ ...newCarrier, services })
+                      }}
+                      className="border p-2 w-24 rounded"
+                    />
+                  </div>
+                ))}
+                <button
+                  onClick={() => setNewCarrier({
+                    ...newCarrier,
+                    services: [...newCarrier.services, { name: '', shipment_type: 'balik', price_per_unit: 0 }]
+                  })}
+                  className="text-blue-600 hover:text-blue-800"
+                >
+                  + Přidat službu
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setShowNewCarrierForm(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Zrušit
+              </button>
+              <button
+                onClick={addNewCarrier}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                Vytvořit dopravce
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {carriers.length === 0 && <p>Žádní dopravci nebyli nalezeni.</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -90,47 +260,57 @@ const Courier = () => {
             </p>
             <div className="mt-4">
               <h4 className="font-semibold mb-2">Služby:</h4>
-              {carrier.services?.map((service) => (
-                <div key={service.id} className="flex items-center justify-between p-2 border-b">
-                  <span>{service.name}</span>
-                  <div className="flex items-center gap-2">
-                    {editingService === service.id ? (
-                      <>
-                        <input
-                          type="number"
-                          value={service.price_per_unit}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value)
-                            if (!isNaN(value)) {
-                              updateServicePrice(service.id, value)
-                            }
-                          }}
-                          className="border rounded w-24 px-2 py-1 text-right"
-                        />
-                        <button
-                          onClick={() => setEditingService(null)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          Hotovo
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <span>{service.price_per_unit} Kč/{service.shipment_type === 'balik' ? 'štítek' : 'paleta'}</span>
-                        <button
-                          onClick={() => setEditingService(service.id)}
-                          className="text-gray-400 hover:text-blue-600"
-                          title="Upravit cenu"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                          </svg>
-                        </button>
-                      </>
-                    )}
-                  </div>
+              <div className="border rounded overflow-hidden">
+                <div className="grid grid-cols-3 bg-gray-50 p-2 border-b text-sm font-medium text-center">
+                  <div>Název služby</div>
+                  <div>Typ přepravy</div>
+                  <div>Cena za jednotku (Kč)</div>
                 </div>
-              ))}
+                {carrier.services?.map((service) => (
+                  <div key={service.id} className="grid grid-cols-3 p-2 border-b last:border-b-0 hover:bg-gray-50">
+                    <div className="text-center">{service.name}</div>
+                    <div className="text-center text-gray-600">
+                      {service.shipment_type === 'balik' ? 'Balík' : 'Paleta'}
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                      {editingService === service.id ? (
+                        <>
+                          <input
+                            type="number"
+                            value={service.price_per_unit}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value)
+                              if (!isNaN(value)) {
+                                updateServicePrice(service.id, value)
+                              }
+                            }}
+                            className="border rounded w-20 px-2 py-1 text-right"
+                          />
+                          <button
+                            onClick={() => setEditingService(null)}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            ✓
+                          </button>
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span>{service.price_per_unit}</span>
+                          <button
+                            onClick={() => setEditingService(service.id)}
+                            className="text-gray-400 hover:text-blue-600"
+                            title="Upravit cenu"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         ))}

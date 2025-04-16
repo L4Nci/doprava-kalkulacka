@@ -1,12 +1,15 @@
 -- Nejdřív vytvoříme tabulku
 create table products (
-  id uuid default uuid_generate_v4() primary key,
-  code text not null unique,
+  id uuid default uuid_generate_v4() primary key,  -- Automatické generování UUID
+  code uuid default uuid_generate_v4(),            -- Unikátní UUID pro kód produktu
   name text not null,
   items_per_box integer not null,
   palette_percentage decimal not null,
   image_url text not null
 );
+
+-- Zajistíme unikátnost kódu
+alter table products add constraint products_code_key unique (code);
 
 -- Vložíme všechny produkty
 insert into products (code, name, items_per_box, palette_percentage, image_url) values
