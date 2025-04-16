@@ -13,6 +13,7 @@ function MainApp() {
   const [isLoading, setIsLoading] = useState(false)
   const [copySuccess, setCopySuccess] = useState({ parcel: false, pallet: false })
   const [availableCountries, setAvailableCountries] = useState([])
+  const [error, setError] = useState(null)
 
   const [productType, setProductType] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -24,7 +25,8 @@ function MainApp() {
     acc[key] = {
       boxesPerUnit: 1 / value.itemsPerBox,
       name: key,
-      image: value.imageUrl
+      image: value.imageUrl,
+      palettePercentage: value.palettePercentage || 0.01
     }
     return acc
   }, {})
@@ -92,8 +94,17 @@ function MainApp() {
     if (!productType || !quantity) return
     const qty = parseInt(quantity)
     const product = predefinedProducts[productType]
-    const boxes = product.boxesPerUnit * qty
-    const newItem = { productType, quantity: qty, boxes, ...product }
+    // Zaokrouhlíme počet krabic nahoru
+    const boxes = Math.ceil(product.boxesPerUnit * qty)
+    const pallets = qty * (product.palettePercentage || 0.01)
+    
+    const newItem = { 
+      productType, 
+      quantity: qty, 
+      boxes,
+      pallets,
+      ...product 
+    }
     setSelectedItems([...selectedItems, newItem])
     setProductType('')
     setQuantity('')
@@ -103,14 +114,39 @@ function MainApp() {
     setSelectedItems(prevItems => prevItems.filter((_, i) => i !== index));
   };
 
+  const validateAndCalculate = () => {
+    setError(null)
+
+    if (selectedItems.length === 0) {
+      setError('Přidejte alespoň jednu položku')
+      return false
+    }
+
+    if (!selectedCountry) {
+      setError('Vyberte cílovou zemi')
+      return false
+    }
+
+    const totalBoxes = Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxes, 0))
+    if (totalBoxes > 1000) {
+      if (!window.confirm('Opravdu chcete vypočítat dopravu pro více než 1000 krabic?')) {
+        return false
+      }
+    }
+
+    return true
+  }
+
   const calculateShipping = async () => {
+    if (!validateAndCalculate()) return;
+    
     setIsLoading(true)
     try {
-      const totalBoxes = selectedItems.reduce((sum, item) => sum + item.boxes, 0)
-      const totalPallets = Math.ceil(totalBoxes / 50)
+      // Zaokrouhlení nahoru pro počet krabic a palet
+      const totalBoxes = Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxes, 0))
+      const totalPallets = Math.ceil(selectedItems.reduce((sum, item) => sum + item.pallets, 0))
 
       const country = selectedCountry
-      
       let parcelOption = null
       let palletOption = null
 
@@ -124,6 +160,7 @@ function MainApp() {
         services.forEach(service => {
           const shipmentType = service.shipment_type || service.shipmentType
           const pricePerUnit = service.price_per_unit || service.pricePerUnit
+          // Používáme zaokrouhlené hodnoty pro výpočet ceny
           const price = pricePerUnit * (shipmentType === 'balik' ? totalBoxes : totalPallets)
           
           if (shipmentType === 'balik') {
@@ -207,7 +244,9 @@ function MainApp() {
   }
 
   const totalBoxes = selectedItems.reduce((sum, item) => sum + item.boxes, 0)
-  const totalPallets = Math.ceil(totalBoxes / 50)
+  const totalPallets = selectedItems.reduce((sum, item) => {
+    return sum + item.pallets
+  }, 0)
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -250,8 +289,10 @@ function MainApp() {
                 <div>
                   <p className="font-medium">{item.name}</p>
                   <p className="text-sm text-gray-600">Počet kusů: {item.quantity}</p>
-                  <p className="text-sm text-gray-600">Počet krabic: {item.boxes.toFixed(0)}</p>
-                  <p className="text-sm text-gray-600">Využití palety: {((item.boxes / 50) * 100).toFixed(1)}%</p>
+                  <p className="text-sm text-gray-600">Počet krabic: {Math.ceil(item.boxes)}</p>
+                  <p className="text-sm text-gray-600">
+                    Obsazenost palety: {(item.pallets * 100).toFixed(0)}%
+                  </p>
                 </div>
               </div>
               <button
@@ -269,8 +310,8 @@ function MainApp() {
           {selectedItems.length > 0 && (
             <div className="bg-gray-100 p-3 rounded text-sm mt-2">
               <p><strong>Celkový přehled:</strong></p>
-              <p>Celkem krabic: {totalBoxes.toFixed(0)}</p>
-              <p>Celkem palet: {totalPallets}</p>
+              <p>Celkem krabic: {Math.ceil(totalBoxes)}</p>
+              <p>Celkem palet: {Math.ceil(totalPallets)}</p>
             </div>
           )}
 
@@ -289,6 +330,10 @@ function MainApp() {
               ))}
             </select>
           </div>
+
+          {error && (
+            <div className="text-red-600 text-sm mb-2">{error}</div>
+          )}
 
           <div className="flex space-x-2 mt-4">
             <button

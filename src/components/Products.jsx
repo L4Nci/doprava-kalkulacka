@@ -15,6 +15,15 @@ const Products = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
 
+  const generateCodeFromName = (name) => {
+    return name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // odstranění diakritiky
+      .replace(/[^a-z0-9]+/g, '-') // nahrazení mezer a spec. znaků pomlčkou
+      .replace(/^-+|-+$/g, ''); // odstranění pomlček na začátku a konci
+  }
+
   useEffect(() => {
     const fetchProducts = async () => {
       console.log('Načítám produkty ze Supabase...')
@@ -62,7 +71,7 @@ const Products = () => {
         .from('products')
         .insert([{
           name: newProduct.name.trim(),
-          code: crypto.randomUUID(), // Generujeme UUID na frontendu
+          code: generateCodeFromName(newProduct.name), // generujeme code z názvu
           items_per_box: parseInt(newProduct.items_per_box),
           palette_percentage: parseFloat(newProduct.palette_percentage) / 100,
           image_url: newProduct.image_url.trim()
