@@ -227,8 +227,13 @@ function MainApp() {
               className="border p-2 w-full rounded"
             >
               <option value="">Vyberte zemi...</option>
-              <option value="CZ">Česká republika</option>
+              <option value="CZ">Česko</option>
               <option value="SK">Slovensko</option>
+              <option value="HU">Maďarsko</option>
+              <option value="DE">Německo</option>
+              <option value="HR">Chorvatsko</option>
+              <option value="PL">Polsko</option>
+              <option value="SI">Slovinsko</option>
             </select>
           </div>
 
