@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { carriers as staticCarriers } from '../config/carriers'
 import { useProducts } from '../hooks/useProducts'
+import { useCurrency } from '../hooks/useCurrency'
 
 function MainApp() {
   const [carriers, setCarriers] = useState([])
@@ -17,6 +18,7 @@ function MainApp() {
   const [quantity, setQuantity] = useState('')
 
   const { products, isLoading: productsLoading } = useProducts()
+  const { convertPrice, isLoading: currencyLoading } = useCurrency()
 
   const predefinedProducts = Object.entries(products).reduce((acc, [key, value]) => {
     acc[key] = {
@@ -173,6 +175,21 @@ function MainApp() {
     }
   };
 
+  const renderPrice = (priceInCZK) => {
+    const localPrice = convertPrice(priceInCZK, selectedCountry)
+    if (localPrice.symbol === 'Kč' || currencyLoading) {
+      return `${priceInCZK} Kč`
+    }
+    return (
+      <span>
+        {priceInCZK} Kč
+        <span className="text-gray-500 ml-1">
+          ({localPrice.value} {localPrice.symbol})
+        </span>
+      </span>
+    )
+  }
+
   const totalBoxes = selectedItems.reduce((sum, item) => sum + item.boxes, 0)
   const totalPallets = Math.ceil(totalBoxes / 50)
 
@@ -288,7 +305,9 @@ function MainApp() {
                 <img src={parcelTotal.logo} alt="Logo" className="h-6 my-1" />
                 <p>{parcelTotal.carrier} - {parcelTotal.service}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <p className="text-sm text-gray-500">Celková cena: {parcelTotal.price} Kč</p>
+                  <p className="text-sm text-gray-500">
+                    Celková cena: {renderPrice(parcelTotal.price)}
+                  </p>
                   <button
                     onClick={() => copyToClipboard(parcelTotal.price, 'parcel')}
                     className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -314,7 +333,9 @@ function MainApp() {
                 <img src={palletTotal.logo} alt="Logo" className="h-6 my-1" />
                 <p>{palletTotal.carrier} - {palletTotal.service}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <p className="text-sm text-gray-600">Celková cena: {palletTotal.price} Kč</p>
+                  <p className="text-sm text-gray-600">
+                    Celková cena: {renderPrice(palletTotal.price)}
+                  </p>
                   <button
                     onClick={() => copyToClipboard(palletTotal.price, 'pallet')}
                     className="text-gray-400 hover:text-gray-600 transition-colors"
