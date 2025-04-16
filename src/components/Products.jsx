@@ -54,12 +54,6 @@ const Products = () => {
   const addNewProduct = async () => {
     if (isSubmitting) return; // Prevent double submission
     
-    // Validate required fields
-    if (!newProduct.name || !newProduct.image_url || !newProduct.items_per_box) {
-      setSubmitError('Vyplňte prosím všechna povinná pole')
-      return
-    }
-
     setIsSubmitting(true)
     setSubmitError(null)
 
@@ -68,6 +62,7 @@ const Products = () => {
         .from('products')
         .insert([{
           name: newProduct.name.trim(),
+          code: crypto.randomUUID(), // Generujeme UUID na frontendu
           items_per_box: parseInt(newProduct.items_per_box),
           palette_percentage: parseFloat(newProduct.palette_percentage) / 100,
           image_url: newProduct.image_url.trim()
