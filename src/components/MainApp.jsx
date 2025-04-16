@@ -11,6 +11,7 @@ function MainApp() {
   const [palletTotal, setPalletTotal] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [copySuccess, setCopySuccess] = useState({ parcel: false, pallet: false })
+  const [availableCountries, setAvailableCountries] = useState([])
 
   const [productType, setProductType] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -25,6 +26,16 @@ function MainApp() {
     }
     return acc
   }, {})
+
+  const countryNames = {
+    CZ: "Česko",
+    SK: "Slovensko",
+    HR: "Chorvatsko",
+    DE: "Německo",
+    HU: "Maďarsko",
+    PL: "Polsko",
+    SI: "Slovinsko"
+  };
 
   useEffect(() => {
     const fetchCarriers = async () => {
@@ -53,6 +64,18 @@ function MainApp() {
         } else {
           console.log('Používám data ze Supabase');
           setCarriers(data);
+
+          const countries = new Set();
+          data.forEach(carrier => {
+            carrier.supported_countries?.forEach(country => {
+              countries.add(country);
+            });
+          });
+          const sortedCountries = Array.from(countries).sort((a, b) =>
+            countryNames[a]?.localeCompare(countryNames[b] || a)
+          );
+          setAvailableCountries(sortedCountries);
+          console.log('Dostupné země:', sortedCountries);
         }
       } catch (error) {
         console.error('Chyba:', error.message);
@@ -89,7 +112,6 @@ function MainApp() {
       let parcelOption = null
       let palletOption = null
 
-      // Použij buď Supabase data nebo statická data
       const carriersToUse = carriers.length > 0 ? carriers : Object.values(staticCarriers)
 
       carriersToUse.forEach(carrier => {
@@ -227,13 +249,11 @@ function MainApp() {
               className="border p-2 w-full rounded"
             >
               <option value="">Vyberte zemi...</option>
-              <option value="CZ">Česko</option>
-              <option value="SK">Slovensko</option>
-              <option value="HU">Maďarsko</option>
-              <option value="DE">Německo</option>
-              <option value="HR">Chorvatsko</option>
-              <option value="PL">Polsko</option>
-              <option value="SI">Slovinsko</option>
+              {availableCountries.map(countryCode => (
+                <option key={countryCode} value={countryCode}>
+                  {countryNames[countryCode] || countryCode}
+                </option>
+              ))}
             </select>
           </div>
 
