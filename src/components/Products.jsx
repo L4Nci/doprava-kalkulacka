@@ -12,6 +12,8 @@ const Products = () => {
     palette_percentage: 0.01,
     image_url: ''
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -50,29 +52,38 @@ const Products = () => {
   }
 
   const addNewProduct = async () => {
+    if (isSubmitting) return; // Prevent double submission
+    
+    // Validate required fields
+    if (!newProduct.name || !newProduct.image_url || !newProduct.items_per_box) {
+      setSubmitError('Vyplňte prosím všechna povinná pole')
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmitError(null)
+
     try {
       const { data, error } = await supabase
         .from('products')
         .insert([{
-          name: newProduct.name,
+          name: newProduct.name.trim(),
           items_per_box: parseInt(newProduct.items_per_box),
           palette_percentage: parseFloat(newProduct.palette_percentage) / 100,
-          image_url: newProduct.image_url
+          image_url: newProduct.image_url.trim()
         }])
         .select()
 
       if (error) throw error
 
+      console.log('Produkt úspěšně vytvořen:', data)
       setProducts([...products, data[0]])
       setShowNewProductForm(false)
-      setNewProduct({
-        name: '',
-        items_per_box: 0,
-        palette_percentage: 0.01,
-        image_url: ''
-      })
     } catch (err) {
       console.error('Chyba při vytváření produktu:', err)
+      setSubmitError(err.message || 'Nepodařilo se vytvořit produkt')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -97,6 +108,12 @@ const Products = () => {
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 className="text-xl font-bold mb-4">Nový produkt</h3>
             
+            {submitError && (
+              <div className="mb-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+                {submitError}
+              </div>
+            )}
+
             <div className="space-y-4">
               <div>
                 <label className="block mb-1">Název produktu</label>
@@ -146,16 +163,23 @@ const Products = () => {
 
             <div className="flex justify-end gap-2 mt-6">
               <button
-                onClick={() => setShowNewProductForm(false)}
+                onClick={() => {
+                  setShowNewProductForm(false)
+                  setSubmitError(null)
+                }}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                disabled={isSubmitting}
               >
                 Zrušit
               </button>
               <button
                 onClick={addNewProduct}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                disabled={isSubmitting}
+                className={`bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ${
+                  isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
-                Vytvořit produkt
+                {isSubmitting ? 'Vytvářím...' : 'Vytvořit produkt'}
               </button>
             </div>
           </div>
