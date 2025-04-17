@@ -14,7 +14,6 @@ function MainApp() {
   const [copySuccess, setCopySuccess] = useState({ parcel: false, pallet: false })
   const [availableCountries, setAvailableCountries] = useState([])
   const [error, setError] = useState(null)
-  const [warning, setWarning] = useState([])
 
   const [productType, setProductType] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -29,11 +28,12 @@ function MainApp() {
     }
 
     acc[product.code] = {
-      boxesPerUnit: 1 / product.items_per_box,
-      itemsPerPallet: product.items_per_pallet,
+      boxesPerUnit: product.parcel_disabled ? null : (product.items_per_box ? 1 / product.items_per_box : null),
+      itemsPerPallet: product.pallet_disabled ? null : product.items_per_pallet,
       name: product.name,
       image: product.image_url,
-      parcelDisabled: Boolean(product.parcel_disabled)
+      parcelDisabled: Boolean(product.parcel_disabled),
+      palletDisabled: Boolean(product.pallet_disabled)
     }
     return acc
   }, {})
@@ -121,14 +121,14 @@ function MainApp() {
     })
 
     // Přidáme kontrolu, že máme všechna potřebná data
-    if (!product || !product.itemsPerPallet) {
-      console.error('Chybí údaj o kapacitě palety nebo produkt:', product)
+    if (!product) {
+      console.error('Chybí údaje o produktu:', product)
       return
     }
 
-    const boxes = Math.ceil(product.boxesPerUnit * qty)
-    const palletUsagePercentage = (qty / product.itemsPerPallet) * 100
-    const requiredPallets = Math.ceil(palletUsagePercentage / 100)
+    const boxes = product.parcelDisabled ? null : (product.boxesPerUnit ? Math.ceil(product.boxesPerUnit * qty) : null)
+    const palletUsagePercentage = product.palletDisabled ? null : (qty / product.itemsPerPallet) * 100
+    const requiredPallets = palletUsagePercentage ? Math.ceil(palletUsagePercentage / 100) : null
 
     const newItem = { 
       productType, 
@@ -150,7 +150,6 @@ function MainApp() {
 
   const validateAndCalculate = () => {
     setError(null)
-    setWarning([])
 
     if (selectedItems.length === 0) {
       setError('Přidejte alespoň jednu položku')
@@ -160,19 +159,6 @@ function MainApp() {
     if (!selectedCountry) {
       setError('Vyberte cílovou zemi')
       return false
-    }
-
-    // Check if there are any pallet-only products
-    const hasPalletOnlyItems = selectedItems.some(item => item.parcelDisabled);
-
-    // Only show 1000+ boxes warning if there are no pallet-only products
-    if (!hasPalletOnlyItems) {
-      const totalBoxes = Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxes, 0))
-      if (totalBoxes > 1000) {
-        if (!window.confirm('Opravdu chcete vypočítat dopravu pro více než 1000 krabic?')) {
-          return false
-        }
-      }
     }
 
     return true
@@ -187,14 +173,14 @@ function MainApp() {
       const hasPalletDisabledItems = selectedItems.some(item => item.palletDisabled);
       
       // Počítáme balíky pouze pokud nemáme zakázané položky pro balíky
-      const totalBoxes = hasParcelDisabledItems ? 0 : Math.ceil(
+      const totalBoxes = hasParcelDisabledItems ? null : Math.ceil(
         selectedItems
-          .filter(item => !item.palletDisabled)
+          .filter(item => !item.parcelDisabled)
           .reduce((sum, item) => sum + item.boxes, 0)
       );
 
       // Počítáme palety pouze pokud nemáme zakázané položky pro palety
-      const totalPallets = hasPalletDisabledItems ? 0 : Math.ceil(
+      const totalPallets = hasPalletDisabledItems ? null : Math.ceil(
         selectedItems
           .filter(item => !item.palletDisabled)
           .reduce((sum, item) => sum + item.palletUsagePercentage, 0) / 100
@@ -214,9 +200,12 @@ function MainApp() {
         services.forEach(service => {
           const shipmentType = service.shipment_type || service.shipmentType;
           
-          // Přeskočíme balíkovou přepravu pokud máme zakázané položky
+          // Skip parcel options if parcel shipping is disabled
           if (hasParcelDisabledItems && shipmentType === 'balik') return;
           
+          // Skip pallet options if pallet shipping is disabled
+          if (hasPalletDisabledItems && shipmentType === 'paleta') return;
+
           const pricePerUnit = service.price_per_unit || service.pricePerUnit;
           const price = pricePerUnit * (shipmentType === 'balik' ? totalBoxes : totalPallets);
           
@@ -225,7 +214,7 @@ function MainApp() {
               parcelOption = { carrier: carrier.name, price, logo: carrier.logo_url || carrier.logoUrl, service: service.name };
             }
           }
-          if (shipmentType === 'paleta') {
+          if (shipmentType === 'paleta' && !hasPalletDisabledItems) {
             if (!palletOption || price < palletOption.price) {
               palletOption = { carrier: carrier.name, price, logo: carrier.logo_url || carrier.logoUrl, service: service.name };
             }
@@ -234,16 +223,7 @@ function MainApp() {
       });
 
       setParcelTotal(hasParcelDisabledItems ? null : parcelOption);
-      setPalletTotal(palletOption);
-
-      // Přidání upozornění pro oba typy omezení
-      if (hasParcelDisabledItems) {
-        setWarning(prev => [...prev, "⚠️ Některé produkty lze přepravovat pouze na paletách"]);
-      }
-      if (hasPalletDisabledItems) {
-        setWarning(prev => [...prev, "⚠️ Některé produkty nelze přepravovat na paletách"]);
-      }
-
+      setPalletTotal(hasPalletDisabledItems ? null : palletOption);
     } finally {
       setIsLoading(false);
     }
@@ -349,11 +329,19 @@ function MainApp() {
                 <div>
                   <p className="font-medium">{item.name}</p>
                   <p className="text-sm text-gray-600">Počet kusů: {item.quantity}</p>
-                  <p className="text-sm text-gray-600">Počet krabic: {Math.ceil(item.boxes)}</p>
                   <p className="text-sm text-gray-600">
-                    Obsazenost palety: {!isNaN(item.palletUsagePercentage) ? `${item.palletUsagePercentage.toFixed(0)}%` : '0%'}
-                    {' '}
-                    ({!isNaN(item.pallets) ? item.pallets : 0} {item.pallets === 1 ? 'paleta' : item.pallets >= 2 && item.pallets <= 4 ? 'palety' : 'palet'})
+                    {item.parcelDisabled 
+                      ? "Nelze odeslat na balíky"
+                      : `Počet krabic: ${Math.ceil(item.boxes)}`
+                    }
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {item.palletDisabled
+                      ? "Nelze odeslat na paletě"
+                      : `Obsazenost palety: ${item.palletUsagePercentage.toFixed(0)}% (${item.pallets} ${
+                          item.pallets === 1 ? 'paleta' : item.pallets >= 2 && item.pallets <= 4 ? 'palety' : 'palet'
+                        })`
+                    }
                   </p>
                 </div>
               </div>
@@ -372,11 +360,8 @@ function MainApp() {
           {selectedItems.length > 0 && (
             <div className="bg-gray-100 p-3 rounded text-sm mt-2">
               <p><strong>Celkový přehled:</strong></p>
-              <p>Celkem krabic: {typeof totalBoxes === 'number' ? totalBoxes : totalBoxes}</p>
+              <p>Celkem krabic: {typeof totalBoxes === 'number' ? totalBoxes : 'Není k dispozici'}</p>
               <p>Celkem palet: {Math.ceil(totalPallets)}</p>
-              {selectedItems.some(item => item.parcelDisabled) && (
-                <p className="text-orange-600 mt-1">⚠️ Některé produkty lze přepravovat pouze na paletách</p>
-              )}
             </div>
           )}
 
@@ -398,14 +383,6 @@ function MainApp() {
 
           {error && (
             <div className="text-red-600 text-sm mb-2">{error}</div>
-          )}
-
-          {warning.length > 0 && (
-            <div className="text-orange-600 text-sm mb-2">
-              {warning.map((warn, idx) => (
-                <p key={idx}>{warn}</p>
-              ))}
-            </div>
           )}
 
           <div className="flex space-x-2 mt-4">
@@ -457,7 +434,12 @@ function MainApp() {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-400">Nenalezeno</p>
+              <>
+                <p className="text-sm text-gray-400 mt-1">Nenalezeno</p>
+                {selectedItems.some(item => item.parcelDisabled) && (
+                  <p className="text-sm text-orange-600 mt-1">⚠️ Některé produkty lze přepravovat pouze na paletách</p>
+                )}
+              </>
             )}
           </div>
 
@@ -491,7 +473,12 @@ function MainApp() {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-400">Nenalezeno</p>
+              <>
+                <p className="text-sm text-gray-400 mt-1">Nenalezeno</p>
+                {selectedItems.some(item => item.palletDisabled) && (
+                  <p className="text-sm text-orange-600 mt-1">⚠️ Některé produkty nelze přepravovat na paletách</p>
+                )}
+              </>
             )}
           </div>
         </div>
