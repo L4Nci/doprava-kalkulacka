@@ -158,68 +158,51 @@ function MainApp() {
     
     setIsLoading(true)
     try {
-      const totalBoxes = Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxes, 0))
-      // Nový výpočet celkových palet z procentuální obsazenosti
+      const hasParcelDisabledItems = selectedItems.some(item => item.parcelDisabled);
+      const totalBoxes = hasParcelDisabledItems ? 0 : Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxes, 0));
       const totalPallets = Math.ceil(
         selectedItems.reduce((sum, item) => sum + item.palletUsagePercentage, 0) / 100
       );
 
-      const country = selectedCountry
-      let parcelOption = null
-      let palletOption = null
+      const country = selectedCountry;
+      let parcelOption = null;
+      let palletOption = null;
 
-      const carriersToUse = carriers.length > 0 ? carriers : Object.values(staticCarriers)
+      const carriersToUse = carriers.length > 0 ? carriers : Object.values(staticCarriers);
 
-      // Kontrola, zda všechny produkty mohou být odeslány balíkem
-      const hasParcelDisabledItems = selectedItems.some(item => item.parcelDisabled);
-      
       carriersToUse.forEach(carrier => {
-        const supportedCountries = carrier.supported_countries || carrier.supportedCountries
-        if (!supportedCountries?.includes(country)) return
+        const supportedCountries = carrier.supported_countries || carrier.supportedCountries;
+        if (!supportedCountries?.includes(country)) return;
 
-        const services = carrier.services || []
+        const services = carrier.services || [];
         services.forEach(service => {
-          const shipmentType = service.shipment_type || service.shipmentType
-          // Přeskočíme balíkovou přepravu, pokud některý produkt vyžaduje paletu
+          const shipmentType = service.shipment_type || service.shipmentType;
+          
+          // Přeskočíme balíkovou přepravu pokud máme zakázané položky
           if (hasParcelDisabledItems && shipmentType === 'balik') return;
           
-          const pricePerUnit = service.price_per_unit || service.pricePerUnit
-          const price = pricePerUnit * (shipmentType === 'balik' ? totalBoxes : totalPallets)
+          const pricePerUnit = service.price_per_unit || service.pricePerUnit;
+          const price = pricePerUnit * (shipmentType === 'balik' ? totalBoxes : totalPallets);
           
-          if (shipmentType === 'balik') {
+          if (shipmentType === 'balik' && !hasParcelDisabledItems) {
             if (!parcelOption || price < parcelOption.price) {
-              parcelOption = { 
-                carrier: carrier.name, 
-                price, 
-                logo: carrier.logo_url || carrier.logoUrl,
-                service: service.name
-              }
+              parcelOption = { carrier: carrier.name, price, logo: carrier.logo_url || carrier.logoUrl, service: service.name };
             }
           }
           if (shipmentType === 'paleta') {
             if (!palletOption || price < palletOption.price) {
-              palletOption = { 
-                carrier: carrier.name, 
-                price, 
-                logo: carrier.logo_url || carrier.logoUrl,
-                service: service.name
-              }
+              palletOption = { carrier: carrier.name, price, logo: carrier.logo_url || carrier.logoUrl, service: service.name };
             }
           }
-        })
-      })
+        });
+      });
 
-      // Přidáme varování, pokud jsou některé produkty pouze pro palety
-      if (hasParcelDisabledItems) {
-        setError('Některé produkty lze přepravovat pouze na paletách')
-      }
-
-      setParcelTotal(parcelOption)
-      setPalletTotal(palletOption)
+      setParcelTotal(hasParcelDisabledItems ? null : parcelOption);
+      setPalletTotal(palletOption);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const resetForm = () => {
     setSelectedItems([])
@@ -271,7 +254,9 @@ function MainApp() {
     )
   }
 
-  const totalBoxes = selectedItems.reduce((sum, item) => sum + item.boxes, 0)
+  const totalBoxes = selectedItems.some(item => item.parcelDisabled) 
+    ? "Není k dispozici (pouze paletová přeprava)" 
+    : Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxes, 0));
   const totalPallets = Math.ceil(
     selectedItems.reduce((sum, item) => sum + item.palletUsagePercentage, 0) / 100
   );
@@ -342,8 +327,11 @@ function MainApp() {
           {selectedItems.length > 0 && (
             <div className="bg-gray-100 p-3 rounded text-sm mt-2">
               <p><strong>Celkový přehled:</strong></p>
-              <p>Celkem krabic: {Math.ceil(totalBoxes)}</p>
+              <p>Celkem krabic: {typeof totalBoxes === 'number' ? totalBoxes : totalBoxes}</p>
               <p>Celkem palet: {Math.ceil(totalPallets)}</p>
+              {selectedItems.some(item => item.parcelDisabled) && (
+                <p className="text-orange-600 mt-1">⚠️ Některé produkty lze přepravovat pouze na paletách</p>
+              )}
             </div>
           )}
 

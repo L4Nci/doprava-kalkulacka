@@ -24,7 +24,19 @@ export function useProducts() {
             početProduktů: data.length,
             produkty: data.map(p => p.name)
           });
-          setProducts(data) // Změna: ukládáme přímo pole dat
+
+          const formattedProducts = data.reduce((acc, product) => {
+            acc[product.code] = {
+              itemsPerBox: product.items_per_box,
+              itemsPerPallet: product.items_per_pallet,
+              imageUrl: product.image_url,
+              name: product.name,
+              parcelDisabled: product.parcel_disabled || false // přidáme s výchozí hodnotou
+            }
+            return acc
+          }, {})
+
+          setProducts(formattedProducts) // Změna: ukládáme přímo pole dat
           console.log('Data produktů připravena k použití');
         } else {
           console.log('Supabase je prázdná, používám lokální data produktů');
