@@ -9,7 +9,7 @@ const Products = () => {
   const [newProduct, setNewProduct] = useState({
     name: '',
     items_per_box: 0,
-    palette_percentage: 0.01,
+    items_per_pallet: 0, // změna z palette_percentage
     image_url: ''
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -75,7 +75,7 @@ const Products = () => {
           name: newProduct.name.trim(),
           code: generateCodeFromName(newProduct.name), // generujeme code z názvu
           items_per_box: parseInt(newProduct.items_per_box),
-          palette_percentage: parseFloat(newProduct.palette_percentage) / 100,
+          items_per_pallet: parseInt(newProduct.items_per_pallet),
           image_url: newProduct.image_url.trim()
         }])
         .select()
@@ -179,14 +179,13 @@ const Products = () => {
               </div>
 
               <div>
-                <label className="block mb-1">Využití palety (%)</label>
+                <label className="block mb-1">Počet kusů na paletě</label>
                 <input
                   type="number"
-                  value={newProduct.palette_percentage}
-                  onChange={(e) => setNewProduct({ ...newProduct, palette_percentage: e.target.value })}
+                  value={newProduct.items_per_pallet}
+                  onChange={(e) => setNewProduct({ ...newProduct, items_per_pallet: e.target.value })}
                   className="border p-2 w-full rounded"
-                  step="0.1"
-                  min="0.1"
+                  min="1"
                 />
               </div>
             </div>
@@ -321,21 +320,21 @@ const Products = () => {
               </div>
 
               <div className="grid grid-cols-2 p-2 hover:bg-gray-50">
-                <div className="text-center">1ks zabírá (%) palety</div>
+                <div className="text-center">Kusů na paletě</div>
                 <div className="flex items-center justify-center gap-2">
                   {editingProduct === `${product.id}-pallet` ? (
                     <>
                       <input
                         type="number"
-                        value={(product.palette_percentage * 100).toFixed(1)}
+                        value={product.items_per_pallet}
                         onChange={(e) => {
-                          const value = parseFloat(e.target.value)
-                          if (!isNaN(value)) {
-                            updateProduct(product.id, { palette_percentage: value / 100 })
+                          const value = parseInt(e.target.value)
+                          if (!isNaN(value) && value > 0) {
+                            updateProduct(product.id, { items_per_pallet: value })
                           }
                         }}
                         className="border rounded w-20 px-2 py-1 text-right"
-                        step="0.1"
+                        min="1"
                       />
                       <button
                         onClick={() => setEditingProduct(null)}
@@ -346,7 +345,7 @@ const Products = () => {
                     </>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <span>{(product.palette_percentage * 100).toFixed(1)}</span>
+                      <span>{product.items_per_pallet}</span>
                       <button
                         onClick={() => setEditingProduct(`${product.id}-pallet`)}
                         className="text-gray-400 hover:text-blue-600"

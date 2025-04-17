@@ -15,6 +15,8 @@ export function useProducts() {
           .from('products')
           .select('*')
 
+        console.log('Načtená data z products:', data) // přidáme log pro kontrolu
+
         if (error) throw error
 
         if (data && data.length > 0) {
@@ -22,18 +24,8 @@ export function useProducts() {
             početProduktů: data.length,
             produkty: data.map(p => p.name)
           });
-
-          const formattedProducts = data.reduce((acc, product) => {
-            acc[product.code] = {
-              itemsPerBox: product.items_per_box,
-              palettePercentage: product.palette_percentage,
-              imageUrl: product.image_url,
-              name: product.name
-            }
-            return acc
-          }, {})
-          setProducts(formattedProducts)
-          console.log('Data produktů transformována a připravena k použití');
+          setProducts(data) // Změna: ukládáme přímo pole dat
+          console.log('Data produktů připravena k použití');
         } else {
           console.log('Supabase je prázdná, používám lokální data produktů');
           setProducts(staticProducts)
@@ -51,5 +43,9 @@ export function useProducts() {
     fetchProducts()
   }, [])
 
-  return { products, isLoading, error }
+  return {
+    products,
+    isLoading,
+    error
+  }
 }

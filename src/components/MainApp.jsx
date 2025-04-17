@@ -21,12 +21,12 @@ function MainApp() {
   const { products, isLoading: productsLoading } = useProducts()
   const { convertPrice, isLoading: currencyLoading } = useCurrency()
 
-  const predefinedProducts = Object.entries(products).reduce((acc, [key, value]) => {
-    acc[key] = {
-      boxesPerUnit: 1 / value.itemsPerBox,
-      name: key,
-      image: value.imageUrl,
-      palettePercentage: value.palettePercentage || 0.01
+  const predefinedProducts = products.reduce((acc, product) => {
+    acc[product.code] = {
+      boxesPerUnit: 1 / product.items_per_box,
+      itemsPerPallet: product.items_per_pallet,
+      name: product.name,
+      image: product.image_url
     }
     return acc
   }, {})
@@ -94,17 +94,32 @@ function MainApp() {
     if (!productType || !quantity) return
     const qty = parseInt(quantity)
     const product = predefinedProducts[productType]
-    // Zaokrouhlíme počet krabic nahoru
-    const boxes = Math.ceil(product.boxesPerUnit * qty)
-    const pallets = qty * (product.palettePercentage || 0.01)
     
+    console.log('Přidávám produkt:', {
+      productType,
+      product,
+      qty
+    })
+
+    // Přidáme kontrolu, že máme všechna potřebná data
+    if (!product || !product.itemsPerPallet) {
+      console.error('Chybí údaj o kapacitě palety nebo produkt:', product)
+      return
+    }
+
+    const boxes = Math.ceil(product.boxesPerUnit * qty)
+    const palletUsagePercentage = (qty / product.itemsPerPallet) * 100
+    const requiredPallets = Math.ceil(palletUsagePercentage / 100)
+
     const newItem = { 
       productType, 
       quantity: qty, 
       boxes,
-      pallets,
+      pallets: requiredPallets,
+      palletUsagePercentage,
       ...product 
     }
+    
     setSelectedItems([...selectedItems, newItem])
     setProductType('')
     setQuantity('')
@@ -142,9 +157,11 @@ function MainApp() {
     
     setIsLoading(true)
     try {
-      // Zaokrouhlení nahoru pro počet krabic a palet
       const totalBoxes = Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxes, 0))
-      const totalPallets = Math.ceil(selectedItems.reduce((sum, item) => sum + item.pallets, 0))
+      // Nový výpočet celkových palet z procentuální obsazenosti
+      const totalPallets = Math.ceil(
+        selectedItems.reduce((sum, item) => sum + item.palletUsagePercentage, 0) / 100
+      );
 
       const country = selectedCountry
       let parcelOption = null
@@ -244,9 +261,9 @@ function MainApp() {
   }
 
   const totalBoxes = selectedItems.reduce((sum, item) => sum + item.boxes, 0)
-  const totalPallets = selectedItems.reduce((sum, item) => {
-    return sum + item.pallets
-  }, 0)
+  const totalPallets = Math.ceil(
+    selectedItems.reduce((sum, item) => sum + item.palletUsagePercentage, 0) / 100
+  );
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -263,8 +280,10 @@ function MainApp() {
             className="border p-2 w-full mb-2 rounded"
           >
             <option value="">Vyberte produkt...</option>
-            {Object.keys(predefinedProducts).map((key) => (
-              <option key={key} value={key}>{predefinedProducts[key].name}</option>
+            {products.map((product) => (
+              <option key={product.code} value={product.code}>
+                {product.name}
+              </option>
             ))}
           </select>
           <input
@@ -291,7 +310,9 @@ function MainApp() {
                   <p className="text-sm text-gray-600">Počet kusů: {item.quantity}</p>
                   <p className="text-sm text-gray-600">Počet krabic: {Math.ceil(item.boxes)}</p>
                   <p className="text-sm text-gray-600">
-                    Obsazenost palety: {(item.pallets * 100).toFixed(0)}%
+                    Obsazenost palety: {!isNaN(item.palletUsagePercentage) ? `${item.palletUsagePercentage.toFixed(0)}%` : '0%'}
+                    {' '}
+                    ({!isNaN(item.pallets) ? item.pallets : 0} {item.pallets === 1 ? 'paleta' : item.pallets >= 2 && item.pallets <= 4 ? 'palety' : 'palet'})
                   </p>
                 </div>
               </div>
@@ -301,7 +322,7 @@ function MainApp() {
                 title="Odstranit položku"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l4.293 4.293a1 1 0 01-1.414 1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
               </button>
             </div>
