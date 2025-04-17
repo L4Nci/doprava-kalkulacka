@@ -76,19 +76,17 @@ const Products = () => {
     setSubmitError(null)
 
     try {
-      const productData = {
-        name: newProduct.name.trim(),
-        code: generateCodeFromName(newProduct.name),
-        items_per_pallet: parseInt(newProduct.items_per_pallet),
-        image_url: newProduct.image_url.trim(),
-        parcel_disabled: newProduct.parcel_disabled || false,
-        // Set items_per_box to null if parcel shipping is disabled
-        items_per_box: newProduct.parcel_disabled ? null : parseInt(newProduct.items_per_box)
-      };
-
       const { data, error } = await supabase
         .from('products')
-        .insert([productData])
+        .insert([{
+          name: newProduct.name.trim(),
+          code: generateCodeFromName(newProduct.name),
+          items_per_box: parseInt(newProduct.items_per_box),
+          items_per_pallet: parseInt(newProduct.items_per_pallet),
+          image_url: newProduct.image_url.trim(),
+          parcel_disabled: false,
+          pallet_disabled: false
+        }])
         .select()
 
       if (error) throw error
@@ -395,17 +393,42 @@ const Products = () => {
               </div>
 
               <div className="grid grid-cols-2 p-2 hover:bg-gray-50">
-                <div className="text-center">Povolení balíkové přepravy</div>
-                <div className="flex items-center justify-center gap-2">
+                <div className="text-center">Omezení dopravy</div>
+                <div className="flex flex-col items-center justify-center gap-2">
                   <label className="flex items-center cursor-pointer">
                     <input
                       type="checkbox"
                       checked={!product.parcel_disabled}
-                      onChange={(e) => updateProduct(product.id, { parcel_disabled: !e.target.checked })}
+                      onChange={(e) => {
+                        // Nelze zakázat obě možnosti
+                        if (product.pallet_disabled && !e.target.checked) {
+                          alert('Nelze zakázat všechny způsoby dopravy')
+                          return
+                        }
+                        updateProduct(product.id, { parcel_disabled: !e.target.checked })
+                      }}
                       className="w-4 h-4 text-blue-600"
                     />
                     <span className="ml-2 text-sm">
-                      {product.parcel_disabled ? 'Pouze palety' : 'Balíky povoleny'}
+                      {product.parcel_disabled ? 'Balíky zakázány' : 'Balíky povoleny'}
+                    </span>
+                  </label>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!product.pallet_disabled}
+                      onChange={(e) => {
+                        // Nelze zakázat obě možnosti
+                        if (product.parcel_disabled && !e.target.checked) {
+                          alert('Nelze zakázat všechny způsoby dopravy')
+                          return
+                        }
+                        updateProduct(product.id, { pallet_disabled: !e.target.checked })
+                      }}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="ml-2 text-sm">
+                      {product.pallet_disabled ? 'Palety zakázány' : 'Palety povoleny'}
                     </span>
                   </label>
                 </div>

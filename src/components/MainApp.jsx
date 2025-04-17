@@ -14,6 +14,7 @@ function MainApp() {
   const [copySuccess, setCopySuccess] = useState({ parcel: false, pallet: false })
   const [availableCountries, setAvailableCountries] = useState([])
   const [error, setError] = useState(null)
+  const [warning, setWarning] = useState([])
 
   const [productType, setProductType] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -149,6 +150,7 @@ function MainApp() {
 
   const validateAndCalculate = () => {
     setError(null)
+    setWarning([])
 
     if (selectedItems.length === 0) {
       setError('Přidejte alespoň jednu položku')
@@ -182,9 +184,20 @@ function MainApp() {
     setIsLoading(true)
     try {
       const hasParcelDisabledItems = selectedItems.some(item => item.parcelDisabled);
-      const totalBoxes = hasParcelDisabledItems ? 0 : Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxes, 0));
-      const totalPallets = Math.ceil(
-        selectedItems.reduce((sum, item) => sum + item.palletUsagePercentage, 0) / 100
+      const hasPalletDisabledItems = selectedItems.some(item => item.palletDisabled);
+      
+      // Počítáme balíky pouze pokud nemáme zakázané položky pro balíky
+      const totalBoxes = hasParcelDisabledItems ? 0 : Math.ceil(
+        selectedItems
+          .filter(item => !item.palletDisabled)
+          .reduce((sum, item) => sum + item.boxes, 0)
+      );
+
+      // Počítáme palety pouze pokud nemáme zakázané položky pro palety
+      const totalPallets = hasPalletDisabledItems ? 0 : Math.ceil(
+        selectedItems
+          .filter(item => !item.palletDisabled)
+          .reduce((sum, item) => sum + item.palletUsagePercentage, 0) / 100
       );
 
       const country = selectedCountry;
@@ -222,6 +235,15 @@ function MainApp() {
 
       setParcelTotal(hasParcelDisabledItems ? null : parcelOption);
       setPalletTotal(palletOption);
+
+      // Přidání upozornění pro oba typy omezení
+      if (hasParcelDisabledItems) {
+        setWarning(prev => [...prev, "⚠️ Některé produkty lze přepravovat pouze na paletách"]);
+      }
+      if (hasPalletDisabledItems) {
+        setWarning(prev => [...prev, "⚠️ Některé produkty nelze přepravovat na paletách"]);
+      }
+
     } finally {
       setIsLoading(false);
     }
@@ -376,6 +398,14 @@ function MainApp() {
 
           {error && (
             <div className="text-red-600 text-sm mb-2">{error}</div>
+          )}
+
+          {warning.length > 0 && (
+            <div className="text-orange-600 text-sm mb-2">
+              {warning.map((warn, idx) => (
+                <p key={idx}>{warn}</p>
+              ))}
+            </div>
           )}
 
           <div className="flex space-x-2 mt-4">
