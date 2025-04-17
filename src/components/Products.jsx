@@ -359,6 +359,23 @@ const Products = () => {
                   )}
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 p-2 hover:bg-gray-50">
+                <div className="text-center">Povolení balíkové přepravy</div>
+                <div className="flex items-center justify-center gap-2">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!product.parcel_disabled}
+                      onChange={(e) => updateProduct(product.id, { parcel_disabled: !e.target.checked })}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="ml-2 text-sm">
+                      {product.parcel_disabled ? 'Pouze palety' : 'Balíky povoleny'}
+                    </span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         ))}

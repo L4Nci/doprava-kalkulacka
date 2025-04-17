@@ -26,7 +26,8 @@ function MainApp() {
       boxesPerUnit: 1 / product.items_per_box,
       itemsPerPallet: product.items_per_pallet,
       name: product.name,
-      image: product.image_url
+      image: product.image_url,
+      parcelDisabled: product.parcel_disabled // přidáme novou vlastnost
     }
     return acc
   }, {})
@@ -169,6 +170,9 @@ function MainApp() {
 
       const carriersToUse = carriers.length > 0 ? carriers : Object.values(staticCarriers)
 
+      // Kontrola, zda všechny produkty mohou být odeslány balíkem
+      const hasParcelDisabledItems = selectedItems.some(item => item.parcelDisabled);
+      
       carriersToUse.forEach(carrier => {
         const supportedCountries = carrier.supported_countries || carrier.supportedCountries
         if (!supportedCountries?.includes(country)) return
@@ -176,8 +180,10 @@ function MainApp() {
         const services = carrier.services || []
         services.forEach(service => {
           const shipmentType = service.shipment_type || service.shipmentType
+          // Přeskočíme balíkovou přepravu, pokud některý produkt vyžaduje paletu
+          if (hasParcelDisabledItems && shipmentType === 'balik') return;
+          
           const pricePerUnit = service.price_per_unit || service.pricePerUnit
-          // Používáme zaokrouhlené hodnoty pro výpočet ceny
           const price = pricePerUnit * (shipmentType === 'balik' ? totalBoxes : totalPallets)
           
           if (shipmentType === 'balik') {
@@ -202,6 +208,11 @@ function MainApp() {
           }
         })
       })
+
+      // Přidáme varování, pokud jsou některé produkty pouze pro palety
+      if (hasParcelDisabledItems) {
+        setError('Některé produkty lze přepravovat pouze na paletách')
+      }
 
       setParcelTotal(parcelOption)
       setPalletTotal(palletOption)
