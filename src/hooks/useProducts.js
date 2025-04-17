@@ -20,24 +20,15 @@ export function useProducts() {
         if (error) throw error
 
         if (data && data.length > 0) {
-          console.log('Úspěšně načteno ze Supabase:', {
-            početProduktů: data.length,
-            produkty: data.map(p => p.name)
-          });
-
-          const formattedProducts = data.reduce((acc, product) => {
-            acc[product.code] = {
-              itemsPerBox: product.items_per_box,
-              itemsPerPallet: product.items_per_pallet,
-              imageUrl: product.image_url,
-              name: product.name,
-              parcelDisabled: product.parcel_disabled || false // přidáme s výchozí hodnotou
-            }
-            return acc
-          }, {})
-
-          setProducts(formattedProducts) // Změna: ukládáme přímo pole dat
-          console.log('Data produktů připravena k použití');
+          console.log('Data před transformací:', data);
+          
+          // Změníme formát dat - vracíme pole, ne objekt
+          setProducts(data.map(product => ({
+            ...product,
+            parcel_disabled: product.parcel_disabled || false
+          })));
+          
+          console.log('Data po transformaci:', products);
         } else {
           console.log('Supabase je prázdná, používám lokální data produktů');
           setProducts(staticProducts)

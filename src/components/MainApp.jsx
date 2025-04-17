@@ -22,15 +22,24 @@ function MainApp() {
   const { convertPrice, isLoading: currencyLoading } = useCurrency()
 
   const predefinedProducts = products.reduce((acc, product) => {
+    if (!product || !product.code) {
+      console.warn('Nalezen neplatný produkt:', product);
+      return acc;
+    }
+
     acc[product.code] = {
       boxesPerUnit: 1 / product.items_per_box,
       itemsPerPallet: product.items_per_pallet,
       name: product.name,
       image: product.image_url,
-      parcelDisabled: product.parcel_disabled // přidáme novou vlastnost
+      parcelDisabled: Boolean(product.parcel_disabled)
     }
     return acc
   }, {})
+
+  // Přidáme debug log
+  console.log('Načtené produkty:', products);
+  console.log('Zpracované produkty:', predefinedProducts);
 
   const countryNames = {
     CZ: "Česko",
@@ -93,8 +102,16 @@ function MainApp() {
 
   const addItem = () => {
     if (!productType || !quantity) return
-    const qty = parseInt(quantity)
+    
+    console.log('Přidávám produkt:', { productType, quantity });
+    
     const product = predefinedProducts[productType]
+    if (!product) {
+      console.error('Produkt nenalezen:', productType);
+      return;
+    }
+
+    const qty = parseInt(quantity)
     
     console.log('Přidávám produkt:', {
       productType,
