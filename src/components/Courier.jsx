@@ -73,6 +73,29 @@ const Courier = () => {
     }
   }
 
+  const updateService = async (serviceId, updates) => {
+    try {
+      const { error } = await supabase
+        .from('services')
+        .update(updates)
+        .eq('id', serviceId)
+
+      if (error) throw error
+
+      setCarriers(carriers.map(carrier => ({
+        ...carrier,
+        services: carrier.services.map(service =>
+          service.id === serviceId
+            ? { ...service, ...updates }
+            : service
+        )
+      })))
+      setEditingService(null)
+    } catch (err) {
+      console.error('Chyba při aktualizaci služby:', err)
+    }
+  }
+
   const addNewCarrier = async () => {
     try {
       const { data: carrier, error: carrierError } = await supabase
@@ -324,8 +347,36 @@ const Courier = () => {
                     className="h-12 object-contain" 
                   />
                 )}
-                <h3 className="text-lg font-semibold mt-2">{carrier.name}</h3>
-                <p className="text-sm text-gray-600">
+                {editingCarrier === `name-${carrier.id}` ? (
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      type="text"
+                      value={carrier.name}
+                      onChange={(e) => updateCarrier(carrier.id, { name: e.target.value })}
+                      className="border rounded px-2 py-1 flex-1"
+                    />
+                    <button
+                      onClick={() => setEditingCarrier(null)}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      ✓
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-2">
+                    <h3 className="text-lg font-semibold">{carrier.name}</h3>
+                    <button
+                      onClick={() => setEditingCarrier(`name-${carrier.id}`)}
+                      className="text-gray-400 hover:text-blue-600"
+                      title="Upravit název"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                <p className="text-sm text-gray-600 mt-1">
                   Podporované země: {carrier.supported_countries?.join(', ')}
                 </p>
               </div>
@@ -349,8 +400,40 @@ const Courier = () => {
               {carrier.services?.map((service) => (
                 <div key={service.id} className="grid grid-cols-3 p-2 border-b last:border-b-0 hover:bg-gray-50">
                   <div className="text-center">{service.name}</div>
-                  <div className="text-center text-gray-600">
-                    {service.shipment_type === 'balik' ? 'Balík' : 'Paleta'}
+                  <div className="text-center">
+                    {editingService === `type-${service.id}` ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <select
+                          value={service.shipment_type}
+                          onChange={(e) => updateService(service.id, { shipment_type: e.target.value })}
+                          className="border rounded px-2 py-1"
+                        >
+                          <option value="balik">Balík</option>
+                          <option value="paleta">Paleta</option>
+                        </select>
+                        <button
+                          onClick={() => setEditingService(null)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          ✓
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-gray-600">
+                          {service.shipment_type === 'balik' ? 'Balík' : 'Paleta'}
+                        </span>
+                        <button
+                          onClick={() => setEditingService(`type-${service.id}`)}
+                          className="text-gray-400 hover:text-blue-600"
+                          title="Změnit typ přepravy"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-center gap-2">
                     {editingService === service.id ? (
