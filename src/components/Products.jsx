@@ -9,8 +9,9 @@ const Products = () => {
   const [newProduct, setNewProduct] = useState({
     name: '',
     items_per_box: 0,
-    items_per_pallet: 0, // změna z palette_percentage
-    image_url: ''
+    items_per_pallet: 0,
+    image_url: '',
+    parcel_disabled: false
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
@@ -47,15 +48,21 @@ const Products = () => {
 
   const updateProduct = async (productId, updates) => {
     try {
+      // If we're disabling parcel shipping, set items_per_box to null
+      const finalUpdates = {
+        ...updates,
+        items_per_box: updates.parcel_disabled ? null : updates.items_per_box
+      };
+
       const { data, error } = await supabase
         .from('products')
-        .update(updates)
+        .update(finalUpdates)
         .eq('id', productId)
 
       if (error) throw error
 
       setProducts(products.map(p => 
-        p.id === productId ? { ...p, ...updates } : p
+        p.id === productId ? { ...p, ...finalUpdates } : p
       ))
     } catch (err) {
       console.error('Chyba při ukládání:', err)
@@ -69,15 +76,19 @@ const Products = () => {
     setSubmitError(null)
 
     try {
+      const productData = {
+        name: newProduct.name.trim(),
+        code: generateCodeFromName(newProduct.name),
+        items_per_pallet: parseInt(newProduct.items_per_pallet),
+        image_url: newProduct.image_url.trim(),
+        parcel_disabled: newProduct.parcel_disabled || false,
+        // Set items_per_box to null if parcel shipping is disabled
+        items_per_box: newProduct.parcel_disabled ? null : parseInt(newProduct.items_per_box)
+      };
+
       const { data, error } = await supabase
         .from('products')
-        .insert([{
-          name: newProduct.name.trim(),
-          code: generateCodeFromName(newProduct.name), // generujeme code z názvu
-          items_per_box: parseInt(newProduct.items_per_box),
-          items_per_pallet: parseInt(newProduct.items_per_pallet),
-          image_url: newProduct.image_url.trim()
-        }])
+        .insert([productData])
         .select()
 
       if (error) throw error
@@ -168,15 +179,33 @@ const Products = () => {
               </div>
 
               <div>
-                <label className="block mb-1">Kusů v krabici</label>
-                <input
-                  type="number"
-                  value={newProduct.items_per_box}
-                  onChange={(e) => setNewProduct({ ...newProduct, items_per_box: e.target.value })}
-                  className="border p-2 w-full rounded"
-                  min="1"
-                />
+                <label className="flex items-center space-x-2 mb-1">
+                  <input
+                    type="checkbox"
+                    checked={!newProduct.parcel_disabled}
+                    onChange={(e) => setNewProduct({ 
+                      ...newProduct, 
+                      parcel_disabled: !e.target.checked,
+                      items_per_box: !e.target.checked ? null : newProduct.items_per_box 
+                    })}
+                    className="w-4 h-4"
+                  />
+                  <span>Povolit balíkovou přepravu</span>
+                </label>
               </div>
+
+              {!newProduct.parcel_disabled && (
+                <div>
+                  <label className="block mb-1">Kusů v krabici</label>
+                  <input
+                    type="number"
+                    value={newProduct.items_per_box}
+                    onChange={(e) => setNewProduct({ ...newProduct, items_per_box: e.target.value })}
+                    className="border p-2 w-full rounded"
+                    min="1"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block mb-1">Počet kusů na paletě</label>
@@ -294,6 +323,7 @@ const Products = () => {
                           }
                         }}
                         className="border rounded w-20 px-2 py-1 text-right"
+                        disabled={product.parcel_disabled}
                       />
                       <button
                         onClick={() => setEditingProduct(null)}
@@ -304,16 +334,20 @@ const Products = () => {
                     </>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <span>{product.items_per_box}</span>
-                      <button
-                        onClick={() => setEditingProduct(`${product.id}-box`)}
-                        className="text-gray-400 hover:text-blue-600"
-                        title="Upravit hodnotu"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                        </svg>
-                      </button>
+                      <span>
+                        {product.parcel_disabled ? "Nelze odeslat na balíky" : product.items_per_box}
+                      </span>
+                      {!product.parcel_disabled && (
+                        <button
+                          onClick={() => setEditingProduct(`${product.id}-box`)}
+                          className="text-gray-400 hover:text-blue-600"
+                          title="Upravit hodnotu"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
