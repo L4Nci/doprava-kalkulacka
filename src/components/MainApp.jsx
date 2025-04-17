@@ -287,199 +287,201 @@ function MainApp() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <h1 className="text-center text-3xl font-bold text-blue-700 mb-1">Doprava 3.0</h1>
-      <p className="text-center mb-6 text-gray-600">Vypočítej ideální způsob doručení</p>
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-6 transition-colors duration-200">
+      <div className="max-w-6xl mx-auto relative">
+        <h1 className="text-center text-3xl font-bold text-blue-700 dark:text-blue-400 mb-1">Doprava 3.0</h1>
+        <p className="text-center mb-6 text-gray-600 dark:text-gray-400">Vypočítej ideální způsob doručení</p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-        {/* Vstup */}
-        <div className="bg-white p-6 rounded shadow">
-          <label className="block font-medium mb-1">Vyberte typ produktu:</label>
-          <select
-            value={productType}
-            onChange={(e) => setProductType(e.target.value)}
-            className="border p-2 w-full mb-2 rounded"
-          >
-            <option value="">Vyberte produkt...</option>
-            {products.map((product) => (
-              <option key={product.code} value={product.code}>
-                {product.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            placeholder="Kolik kusů posíláš?"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            className="border p-2 w-full mb-4 rounded"
-          />
-          <button onClick={addItem} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 w-full rounded">
-            Přidat
-          </button>
-        </div>
-
-        {/* Seznam položek */}
-        <div className="bg-white p-6 rounded shadow">
-          <h3 className="font-bold text-lg mb-4">Seznam položek</h3>
-          {selectedItems.map((item, idx) => (
-            <div key={idx} className="flex items-center justify-between mb-3 group">
-              <div className="flex items-center space-x-2">
-                <img src={item.image} alt={item.productType} className="h-10 w-auto" />
-                <div>
-                  <p className="font-medium">{item.name}</p>
-                  <p className="text-sm text-gray-600">Počet kusů: {item.quantity}</p>
-                  <p className="text-sm text-gray-600">
-                    {item.parcelDisabled 
-                      ? "Nelze odeslat na balíky"
-                      : `Počet krabic: ${Math.ceil(item.boxes)}`
-                    }
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {item.palletDisabled
-                      ? "Nelze odeslat na paletě"
-                      : `Obsazenost palety: ${item.palletUsagePercentage.toFixed(0)}% (${item.pallets} ${
-                          item.pallets === 1 ? 'paleta' : item.pallets >= 2 && item.pallets <= 4 ? 'palety' : 'palet'
-                        })`
-                    }
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => removeItem(idx)}
-                className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Odstranit položku"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l4.293 4.293a1 1 0 01-1.414 1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-          ))}
-
-          {selectedItems.length > 0 && (
-            <div className="bg-gray-100 p-3 rounded text-sm mt-2">
-              <p><strong>Celkový přehled:</strong></p>
-              <p>Celkem krabic: {typeof totalBoxes === 'number' ? totalBoxes : 'Není k dispozici'}</p>
-              <p>Celkem palet: {Math.ceil(totalPallets)}</p>
-            </div>
-          )}
-
-          <div className="mt-4">
-            <label className="block mb-1">Vyberte cílovou zemi:</label>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Vstup */}
+          <div className="bg-white dark:bg-gray-800 p-6 rounded shadow">
+            <label className="block font-medium mb-1 dark:text-white">Vyberte typ produktu:</label>
             <select
-              value={selectedCountry}
-              onChange={(e) => setSelectedCountry(e.target.value)}
-              className="border p-2 w-full rounded"
+              value={productType}
+              onChange={(e) => setProductType(e.target.value)}
+              className="border p-2 w-full mb-2 rounded"
             >
-              <option value="">Vyberte zemi...</option>
-              {availableCountries.map(countryCode => (
-                <option key={countryCode} value={countryCode}>
-                  {countryNames[countryCode] || countryCode}
+              <option value="">Vyberte produkt...</option>
+              {products.map((product) => (
+                <option key={product.code} value={product.code}>
+                  {product.name}
                 </option>
               ))}
             </select>
-          </div>
-
-          {error && (
-            <div className="text-red-600 text-sm mb-2">{error}</div>
-          )}
-
-          <div className="flex space-x-2 mt-4">
-            <button
-              onClick={calculateShipping}
-              disabled={isLoading}
-              className={`bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 w-full rounded ${
-                isLoading ? 'opacity-50' : ''
-              }`}
-            >
-              {isLoading ? 'Počítám...' : 'Spočítat'}
-            </button>
-            <button
-              onClick={resetForm}
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 w-full rounded"
-            >
-              Reset
+            <input
+              type="number"
+              placeholder="Kolik kusů posíláš?"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="border p-2 w-full mb-4 rounded"
+            />
+            <button onClick={addItem} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 w-full rounded">
+              Přidat
             </button>
           </div>
-        </div>
 
-        {/* Výsledek */}
-        <div className="bg-white p-6 rounded shadow">
-          <h3 className="font-bold text-lg mb-4">Doporučený dopravce</h3>
-          
-          <div className="mb-6">
-            <p className="text-sm font-medium">Balíková přeprava:</p>
-            {parcelTotal ? (
-              <div className={`border rounded p-3 mt-1 ${
-                palletTotal && parcelTotal.price < palletTotal.price ? 'bg-green-100' : ''
-              }`}>
-                <p className="font-semibold">Doporučená varianta:</p>
-                <img src={parcelTotal.logo} alt="Logo" className="h-6 my-1" />
-                <p>{parcelTotal.carrier} - {parcelTotal.service}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <p className="text-sm text-gray-500">
-                    Celková cena: {renderPrice(parcelTotal.price)}
-                  </p>
-                  <button
-                    onClick={() => copyToClipboard(parcelTotal.price, 'parcel')}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                    title="Kopírovat cenu"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                    </svg>
-                  </button>
-                  {copySuccess.parcel && <span className="text-xs text-green-600">Zkopírováno!</span>}
+          {/* Seznam položek */}
+          <div className="bg-white dark:bg-gray-800 p-6 rounded shadow">
+            <h3 className="font-bold text-lg mb-4 dark:text-white">Seznam položek</h3>
+            {selectedItems.map((item, idx) => (
+              <div key={idx} className="flex items-center justify-between mb-3 group">
+                <div className="flex items-center space-x-2">
+                  <img src={item.image} alt={item.productType} className="h-10 w-auto" />
+                  <div>
+                    <p className="font-medium dark:text-white">{item.name}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Počet kusů: {item.quantity}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {item.parcelDisabled 
+                        ? "Nelze odeslat na balíky"
+                        : `Počet krabic: ${Math.ceil(item.boxes)}`
+                      }
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {item.palletDisabled
+                        ? "Nelze odeslat na paletě"
+                        : `Obsazenost palety: ${item.palletUsagePercentage.toFixed(0)}% (${item.pallets} ${
+                            item.pallets === 1 ? 'paleta' : item.pallets >= 2 && item.pallets <= 4 ? 'palety' : 'palet'
+                          })`
+                      }
+                    </p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => removeItem(idx)}
+                  className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Odstranit položku"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l4.293 4.293a1 1 0 01-1.414 1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
               </div>
-            ) : (
-              <>
-                <p className="text-sm text-gray-400 mt-1">Nenalezeno</p>
-                {selectedItems.some(item => item.parcelDisabled) && (
-                  <p className="text-sm text-orange-600 mt-1">⚠️ Některé produkty lze přepravovat pouze na paletách</p>
-                )}
-              </>
+            ))}
+
+            {selectedItems.length > 0 && (
+              <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded text-sm mt-2">
+                <p className="dark:text-white"><strong>Celkový přehled:</strong></p>
+                <p className="dark:text-white">Celkem krabic: {typeof totalBoxes === 'number' ? totalBoxes : 'Není k dispozici'}</p>
+                <p className="dark:text-white">Celkem palet: {Math.ceil(totalPallets)}</p>
+              </div>
             )}
+
+            <div className="mt-4">
+              <label className="block mb-1 dark:text-white">Vyberte cílovou zemi:</label>
+              <select
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+                className="border p-2 w-full rounded"
+              >
+                <option value="">Vyberte zemi...</option>
+                {availableCountries.map(countryCode => (
+                  <option key={countryCode} value={countryCode}>
+                    {countryNames[countryCode] || countryCode}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {error && (
+              <div className="text-red-600 text-sm mb-2">{error}</div>
+            )}
+
+            <div className="flex space-x-2 mt-4">
+              <button
+                onClick={calculateShipping}
+                disabled={isLoading}
+                className={`bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 w-full rounded ${
+                  isLoading ? 'opacity-50' : ''
+                }`}
+              >
+                {isLoading ? 'Počítám...' : 'Spočítat'}
+              </button>
+              <button
+                onClick={resetForm}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 w-full rounded"
+              >
+                Reset
+              </button>
+            </div>
           </div>
 
-          <div>
-            <p className="text-sm font-medium">Paletová přeprava:</p>
-            {palletTotal ? (
-              <div className={`border rounded p-3 mt-1 ${
-                parcelTotal && palletTotal.price < parcelTotal.price ? 'bg-green-100' : ''
-              }`}>
-                <p className={`font-semibold ${
-                  parcelTotal && palletTotal.price < parcelTotal.price ? 'text-green-700' : 'text-gray-700'
+          {/* Výsledek */}
+          <div className="bg-white dark:bg-gray-800 p-6 rounded shadow">
+            <h3 className="font-bold text-lg mb-4 dark:text-white">Doporučený dopravce</h3>
+            
+            <div className="mb-6">
+              <p className="text-sm font-medium dark:text-white">Balíková přeprava:</p>
+              {parcelTotal ? (
+                <div className={`border rounded p-3 mt-1 ${
+                  palletTotal && parcelTotal.price < palletTotal.price ? 'bg-green-100 dark:bg-green-700' : ''
                 }`}>
-                  {parcelTotal && palletTotal.price < parcelTotal.price ? 'Nejvýhodnější varianta:' : 'Paletová varianta:'}
-                </p>
-                <img src={palletTotal.logo} alt="Logo" className="h-6 my-1" />
-                <p>{palletTotal.carrier} - {palletTotal.service}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <p className="text-sm text-gray-600">
-                    Celková cena: {renderPrice(palletTotal.price)}
-                  </p>
-                  <button
-                    onClick={() => copyToClipboard(palletTotal.price, 'pallet')}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                    title="Kopírovat cenu"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                    </svg>
-                  </button>
-                  {copySuccess.pallet && <span className="text-xs text-green-600">Zkopírováno!</span>}
+                  <p className="font-semibold dark:text-white">Doporučená varianta:</p>
+                  <img src={parcelTotal.logo} alt="Logo" className="h-6 my-1" />
+                  <p className="dark:text-white">{parcelTotal.carrier} - {parcelTotal.service}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-sm text-gray-500 dark:text-gray-300">
+                      Celková cena: {renderPrice(parcelTotal.price)}
+                    </p>
+                    <button
+                      onClick={() => copyToClipboard(parcelTotal.price, 'parcel')}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                      title="Kopírovat cenu"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                      </svg>
+                    </button>
+                    {copySuccess.parcel && <span className="text-xs text-green-600">Zkopírováno!</span>}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <>
-                <p className="text-sm text-gray-400 mt-1">Nenalezeno</p>
-                {selectedItems.some(item => item.palletDisabled) && (
-                  <p className="text-sm text-orange-600 mt-1">⚠️ Některé produkty nelze přepravovat na paletách</p>
-                )}
-              </>
-            )}
+              ) : (
+                <>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Nenalezeno</p>
+                  {selectedItems.some(item => item.parcelDisabled) && (
+                    <p className="text-sm text-orange-600 dark:text-orange-400 mt-1">⚠️ Některé produkty lze přepravovat pouze na paletách</p>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div>
+              <p className="text-sm font-medium dark:text-white">Paletová přeprava:</p>
+              {palletTotal ? (
+                <div className={`border rounded p-3 mt-1 ${
+                  parcelTotal && palletTotal.price < parcelTotal.price ? 'bg-green-100 dark:bg-green-700' : ''
+                }`}>
+                  <p className={`font-semibold ${
+                    parcelTotal && palletTotal.price < parcelTotal.price ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'
+                  }`}>
+                    {parcelTotal && palletTotal.price < parcelTotal.price ? 'Nejvýhodnější varianta:' : 'Paletová varianta:'}
+                  </p>
+                  <img src={palletTotal.logo} alt="Logo" className="h-6 my-1" />
+                  <p className="dark:text-white">{palletTotal.carrier} - {palletTotal.service}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Celková cena: {renderPrice(palletTotal.price)}
+                    </p>
+                    <button
+                      onClick={() => copyToClipboard(palletTotal.price, 'pallet')}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                      title="Kopírovat cenu"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                      </svg>
+                    </button>
+                    {copySuccess.pallet && <span className="text-xs text-green-600">Zkopírováno!</span>}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Nenalezeno</p>
+                  {selectedItems.some(item => item.palletDisabled) && (
+                    <p className="text-sm text-orange-600 dark:text-orange-400 mt-1">⚠️ Některé produkty nelze přepravovat na paletách</p>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
