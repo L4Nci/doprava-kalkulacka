@@ -160,10 +160,16 @@ function MainApp() {
       return false
     }
 
-    const totalBoxes = Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxes, 0))
-    if (totalBoxes > 1000) {
-      if (!window.confirm('Opravdu chcete vypočítat dopravu pro více než 1000 krabic?')) {
-        return false
+    // Check if there are any pallet-only products
+    const hasPalletOnlyItems = selectedItems.some(item => item.parcelDisabled);
+
+    // Only show 1000+ boxes warning if there are no pallet-only products
+    if (!hasPalletOnlyItems) {
+      const totalBoxes = Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxes, 0))
+      if (totalBoxes > 1000) {
+        if (!window.confirm('Opravdu chcete vypočítat dopravu pro více než 1000 krabic?')) {
+          return false
+        }
       }
     }
 
