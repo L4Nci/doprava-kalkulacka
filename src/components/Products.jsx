@@ -295,7 +295,7 @@ const Products = () => {
                 title="Smazat produkt"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414z" clipRule="evenodd" />
                 </svg>
               </button>
             </div>
@@ -367,6 +367,7 @@ const Products = () => {
                         }}
                         className="border rounded w-20 px-2 py-1 text-right"
                         min="1"
+                        disabled={product.pallet_disabled}
                       />
                       <button
                         onClick={() => setEditingProduct(null)}
@@ -377,16 +378,20 @@ const Products = () => {
                     </>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <span>{product.items_per_pallet}</span>
-                      <button
-                        onClick={() => setEditingProduct(`${product.id}-pallet`)}
-                        className="text-gray-400 hover:text-blue-600"
-                        title="Upravit hodnotu"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                        </svg>
-                      </button>
+                      <span>
+                        {product.pallet_disabled ? "Nelze odeslat na paletě" : product.items_per_pallet}
+                      </span>
+                      {!product.pallet_disabled && (
+                        <button
+                          onClick={() => setEditingProduct(`${product.id}-pallet`)}
+                          className="text-gray-400 hover:text-blue-600"
+                          title="Upravit hodnotu"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
