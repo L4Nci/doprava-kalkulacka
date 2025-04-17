@@ -185,18 +185,18 @@ function MainApp() {
     try {
       const hasParcelDisabledItems = selectedItems.some(item => item.parcelDisabled);
       const hasPalletDisabledItems = selectedItems.some(item => item.palletDisabled);
-      
-      // Počítáme balíky pouze pokud nemáme zakázané položky pro balíky
+
+      // Calculate boxes only for items that allow parcel shipping
       const totalBoxes = hasParcelDisabledItems ? 0 : Math.ceil(
         selectedItems
-          .filter(item => !item.palletDisabled)
+          .filter(item => !item.palletDisabled)  // Filter out pallet-disabled items
           .reduce((sum, item) => sum + item.boxes, 0)
       );
 
-      // Počítáme palety pouze pokud nemáme zakázané položky pro palety
-      const totalPallets = hasPalletDisabledItems ? 0 : Math.ceil(
+      // Calculate pallets only for items that allow pallet shipping
+      const totalPallets = hasPalletDisabledItems ? null : Math.ceil(
         selectedItems
-          .filter(item => !item.palletDisabled)
+          .filter(item => !item.palletDisabled)  // Only include items that can be shipped on pallets
           .reduce((sum, item) => sum + item.palletUsagePercentage, 0) / 100
       );
 
@@ -214,8 +214,11 @@ function MainApp() {
         services.forEach(service => {
           const shipmentType = service.shipment_type || service.shipmentType;
           
-          // Přeskočíme balíkovou přepravu pokud máme zakázané položky
+          // Skip parcel shipping if there are parcel-disabled items
           if (hasParcelDisabledItems && shipmentType === 'balik') return;
+          
+          // Skip pallet shipping if there are pallet-disabled items
+          if (hasPalletDisabledItems && shipmentType === 'paleta') return;
           
           const pricePerUnit = service.price_per_unit || service.pricePerUnit;
           const price = pricePerUnit * (shipmentType === 'balik' ? totalBoxes : totalPallets);
@@ -225,7 +228,7 @@ function MainApp() {
               parcelOption = { carrier: carrier.name, price, logo: carrier.logo_url || carrier.logoUrl, service: service.name };
             }
           }
-          if (shipmentType === 'paleta') {
+          if (shipmentType === 'paleta' && !hasPalletDisabledItems) {
             if (!palletOption || price < palletOption.price) {
               palletOption = { carrier: carrier.name, price, logo: carrier.logo_url || carrier.logoUrl, service: service.name };
             }
@@ -234,15 +237,17 @@ function MainApp() {
       });
 
       setParcelTotal(hasParcelDisabledItems ? null : parcelOption);
-      setPalletTotal(palletOption);
+      setPalletTotal(hasPalletDisabledItems ? null : palletOption);
 
-      // Přidání upozornění pro oba typy omezení
+      // Show appropriate warnings
+      const warnings = [];
       if (hasParcelDisabledItems) {
-        setWarning(prev => [...prev, "⚠️ Některé produkty lze přepravovat pouze na paletách"]);
+        warnings.push("⚠️ Některé produkty lze přepravovat pouze na paletách");
       }
       if (hasPalletDisabledItems) {
-        setWarning(prev => [...prev, "⚠️ Některé produkty nelze přepravovat na paletách"]);
+        warnings.push("⚠️ Některé produkty nelze přepravovat na paletách");
       }
+      setWarning(warnings);
 
     } finally {
       setIsLoading(false);
