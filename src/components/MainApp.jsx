@@ -14,6 +14,7 @@ function MainApp() {
   const [copySuccess, setCopySuccess] = useState({ parcel: false, pallet: false })
   const [availableCountries, setAvailableCountries] = useState([])
   const [error, setError] = useState(null)
+  const [inputError, setInputError] = useState(null)
 
   const [productType, setProductType] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -100,6 +101,17 @@ function MainApp() {
 
     fetchCarriers();
   }, [])
+
+  const handleQuantityChange = (e) => {
+    const value = e.target.value
+    if (value < 0) {
+      setInputError('Počet kusů nemůže být záporný')
+      setQuantity('')
+      return
+    }
+    setInputError(null)
+    setQuantity(value)
+  }
 
   const addItem = () => {
     if (!productType || !quantity) return
@@ -310,11 +322,15 @@ function MainApp() {
             </select>
             <input
               type="number"
+              min="0"
               placeholder="Kolik kusů posíláš?"
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              className="border p-2 w-full mb-4 rounded"
+              onChange={handleQuantityChange}
+              className={`border p-2 w-full mb-1 rounded ${inputError ? 'border-red-500' : ''}`}
             />
+            {inputError && (
+              <p className="text-red-500 text-sm mb-3">{inputError}</p>
+            )}
             <button onClick={addItem} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 w-full rounded">
               Přidat
             </button>
