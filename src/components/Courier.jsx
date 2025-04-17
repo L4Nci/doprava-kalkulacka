@@ -13,6 +13,8 @@ const Courier = () => {
     supported_countries: [],
     services: [{ name: '', shipment_type: 'balik', price_per_unit: 0 }]
   })
+  const [deletingCarrier, setDeletingCarrier] = useState(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
   useEffect(() => {
     const fetchCarriers = async () => {
@@ -107,6 +109,37 @@ const Courier = () => {
       console.error('Chyba při vytváření dopravce:', err)
     }
   }
+
+  const deleteCarrier = async (carrierId) => {
+    setDeletingCarrier(carrierId);
+    setDeleteConfirmation('');
+  };
+
+  const confirmDelete = async () => {
+    if (deleteConfirmation.toLowerCase() !== 'smazat') return;
+
+    try {
+      // Nejprve smažeme všechny služby dopravce
+      await supabase
+        .from('services')
+        .delete()
+        .eq('carrier_id', deletingCarrier);
+
+      // Potom smažeme samotného dopravce
+      const { error } = await supabase
+        .from('carriers')
+        .delete()
+        .eq('id', deletingCarrier);
+
+      if (error) throw error;
+
+      setCarriers(carriers.filter(c => c.id !== deletingCarrier));
+      setDeletingCarrier(null);
+      setDeleteConfirmation('');
+    } catch (err) {
+      console.error('Chyba při mazání dopravce:', err);
+    }
+  };
 
   if (isLoading) {
     return <p className="text-gray-600">Načítám dopravce...</p>
@@ -242,75 +275,121 @@ const Courier = () => {
         </div>
       )}
 
+      {deletingCarrier && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold mb-4">Potvrzení smazání</h3>
+            <p className="mb-4">Pro smazání dopravce napište "smazat"</p>
+            <input
+              type="text"
+              value={deleteConfirmation}
+              onChange={(e) => setDeleteConfirmation(e.target.value)}
+              className="border p-2 w-full rounded mb-4"
+              placeholder="smazat"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setDeletingCarrier(null);
+                  setDeleteConfirmation('');
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Zrušit
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleteConfirmation.toLowerCase() !== 'smazat'}
+                className={`bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 
+                  ${deleteConfirmation.toLowerCase() !== 'smazat' ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                Smazat dopravce
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {carriers.length === 0 && <p>Žádní dopravci nebyli nalezeni.</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {carriers.map((carrier) => (
-          <div key={carrier.id} className="border rounded-lg p-4 shadow-md bg-white mb-4">
-            {carrier.logo_url && (
-              <img 
-                src={carrier.logo_url} 
-                alt={carrier.name} 
-                className="h-12 object-contain mb-3" 
-              />
-            )}
-            <h3 className="text-lg font-semibold">{carrier.name}</h3>
-            <p className="text-sm text-gray-600 mb-2">
-              Podporované země: {carrier.supported_countries?.join(', ')}
-            </p>
-            <div className="mt-4">
-              <h4 className="font-semibold mb-2">Služby:</h4>
-              <div className="border rounded overflow-hidden">
-                <div className="grid grid-cols-3 bg-gray-50 p-2 border-b text-sm font-medium text-center">
-                  <div>Název služby</div>
-                  <div>Typ přepravy</div>
-                  <div>Cena za jednotku (Kč)</div>
-                </div>
-                {carrier.services?.map((service) => (
-                  <div key={service.id} className="grid grid-cols-3 p-2 border-b last:border-b-0 hover:bg-gray-50">
-                    <div className="text-center">{service.name}</div>
-                    <div className="text-center text-gray-600">
-                      {service.shipment_type === 'balik' ? 'Balík' : 'Paleta'}
-                    </div>
-                    <div className="flex items-center justify-center gap-2">
-                      {editingService === service.id ? (
-                        <>
-                          <input
-                            type="number"
-                            value={service.price_per_unit}
-                            onChange={(e) => {
-                              const value = parseInt(e.target.value)
-                              if (!isNaN(value)) {
-                                updateServicePrice(service.id, value)
-                              }
-                            }}
-                            className="border rounded w-20 px-2 py-1 text-right"
-                          />
-                          <button
-                            onClick={() => setEditingService(null)}
-                            className="text-blue-600 hover:text-blue-800"
-                          >
-                            ✓
-                          </button>
-                        </>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span>{service.price_per_unit}</span>
-                          <button
-                            onClick={() => setEditingService(service.id)}
-                            className="text-gray-400 hover:text-blue-600"
-                            title="Upravit cenu"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+          <div key={carrier.id} className="border rounded-lg p-4 shadow-md bg-white">
+            <div className="flex justify-between items-start mb-4">
+              <div className="w-full">
+                {carrier.logo_url && (
+                  <img 
+                    src={carrier.logo_url} 
+                    alt={carrier.name} 
+                    className="h-12 object-contain" 
+                  />
+                )}
+                <h3 className="text-lg font-semibold mt-2">{carrier.name}</h3>
+                <p className="text-sm text-gray-600">
+                  Podporované země: {carrier.supported_countries?.join(', ')}
+                </p>
               </div>
+              <button
+                onClick={() => deleteCarrier(carrier.id)}
+                className="text-red-500 hover:text-red-700 p-1"
+                title="Smazat dopravce"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 111.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 01-1.414-1.414L8.586 10 4.293 5.707a1 1 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="border rounded overflow-hidden">
+              <div className="grid grid-cols-3 bg-gray-50 p-2 border-b text-sm font-medium text-center">
+                <div>Název služby</div>
+                <div>Typ přepravy</div>
+                <div>Cena za jednotku (Kč)</div>
+              </div>
+              {carrier.services?.map((service) => (
+                <div key={service.id} className="grid grid-cols-3 p-2 border-b last:border-b-0 hover:bg-gray-50">
+                  <div className="text-center">{service.name}</div>
+                  <div className="text-center text-gray-600">
+                    {service.shipment_type === 'balik' ? 'Balík' : 'Paleta'}
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    {editingService === service.id ? (
+                      <>
+                        <input
+                          type="number"
+                          value={service.price_per_unit}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value)
+                            if (!isNaN(value)) {
+                              updateServicePrice(service.id, value)
+                            }
+                          }}
+                          className="border rounded w-20 px-2 py-1 text-right"
+                        />
+                        <button
+                          onClick={() => setEditingService(null)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          ✓
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span>{service.price_per_unit}</span>
+                        <button
+                          onClick={() => setEditingService(service.id)}
+                          className="text-gray-400 hover:text-blue-600"
+                          title="Upravit cenu"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ))}

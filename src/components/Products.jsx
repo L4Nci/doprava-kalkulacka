@@ -14,6 +14,8 @@ const Products = () => {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
+  const [deletingProduct, setDeletingProduct] = useState(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
   const generateCodeFromName = (name) => {
     return name
@@ -90,6 +92,30 @@ const Products = () => {
       setIsSubmitting(false)
     }
   }
+
+  const deleteProduct = async (productId) => {
+    setDeletingProduct(productId);
+    setDeleteConfirmation('');
+  };
+
+  const confirmDelete = async () => {
+    if (deleteConfirmation.toLowerCase() !== 'smazat') return;
+
+    try {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', deletingProduct);
+
+      if (error) throw error;
+
+      setProducts(products.filter(p => p.id !== deletingProduct));
+      setDeletingProduct(null);
+      setDeleteConfirmation('');
+    } catch (err) {
+      console.error('Chyba při mazání produktu:', err);
+    }
+  };
 
   if (isLoading) {
     return <p className="text-gray-600">Načítám produkty...</p>
@@ -190,11 +216,63 @@ const Products = () => {
         </div>
       )}
 
+      {deletingProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold mb-4">Potvrzení smazání</h3>
+            <p className="mb-4">Pro smazání produktu napište "smazat"</p>
+            <input
+              type="text"
+              value={deleteConfirmation}
+              onChange={(e) => setDeleteConfirmation(e.target.value)}
+              className="border p-2 w-full rounded mb-4"
+              placeholder="smazat"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setDeletingProduct(null);
+                  setDeleteConfirmation('');
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Zrušit
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleteConfirmation.toLowerCase() !== 'smazat'}
+                className={`bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 
+                  ${deleteConfirmation.toLowerCase() !== 'smazat' ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                Smazat produkt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {products.map((product) => (
           <div key={product.id} className="border rounded-lg p-4 shadow-md bg-white">
-            <img src={product.image_url} alt={product.name} className="h-32 w-full object-contain mb-3" />
-            <h3 className="text-lg font-semibold text-center mb-4">{product.name}</h3>
+            <div className="flex justify-between items-start mb-4">
+              <div className="w-full">
+                <img 
+                  src={product.image_url} 
+                  alt={product.name} 
+                  className="h-32 w-full object-contain" 
+                />
+                <h3 className="text-lg font-semibold mt-2">{product.name}</h3>
+              </div>
+              <button
+                onClick={() => deleteProduct(product.id)}
+                className="text-red-500 hover:text-red-700 p-1"
+                title="Smazat produkt"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
             
             <div className="border rounded overflow-hidden">
               <div className="grid grid-cols-2 bg-gray-50 p-2 border-b text-sm font-medium text-center">
