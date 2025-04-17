@@ -262,7 +262,7 @@ function MainApp() {
             onChange={(e) => setProductType(e.target.value)}
             className="border p-2 w-full mb-2 rounded"
           >
-            <option value="">Vyberte kategorii...</option>
+            <option value="">Vyberte produkt...</option>
             {Object.keys(predefinedProducts).map((key) => (
               <option key={key} value={key}>{predefinedProducts[key].name}</option>
             ))}
@@ -361,7 +361,9 @@ function MainApp() {
           <div className="mb-6">
             <p className="text-sm font-medium">Balíková přeprava:</p>
             {parcelTotal ? (
-              <div className="border rounded p-3 mt-1">
+              <div className={`border rounded p-3 mt-1 ${
+                palletTotal && parcelTotal.price < palletTotal.price ? 'bg-green-100' : ''
+              }`}>
                 <p className="font-semibold">Doporučená varianta:</p>
                 <img src={parcelTotal.logo} alt="Logo" className="h-6 my-1" />
                 <p>{parcelTotal.carrier} - {parcelTotal.service}</p>
@@ -389,8 +391,14 @@ function MainApp() {
           <div>
             <p className="text-sm font-medium">Paletová přeprava:</p>
             {palletTotal ? (
-              <div className="border rounded p-3 mt-1 bg-green-100">
-                <p className="text-green-700 font-semibold">Nejvýhodnější varianta:</p>
+              <div className={`border rounded p-3 mt-1 ${
+                parcelTotal && palletTotal.price < parcelTotal.price ? 'bg-green-100' : ''
+              }`}>
+                <p className={`font-semibold ${
+                  parcelTotal && palletTotal.price < parcelTotal.price ? 'text-green-700' : 'text-gray-700'
+                }`}>
+                  {parcelTotal && palletTotal.price < parcelTotal.price ? 'Nejvýhodnější varianta:' : 'Paletová varianta:'}
+                </p>
                 <img src={palletTotal.logo} alt="Logo" className="h-6 my-1" />
                 <p>{palletTotal.carrier} - {palletTotal.service}</p>
                 <div className="flex items-center gap-2 mt-1">
