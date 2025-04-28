@@ -14,7 +14,10 @@ export function useProducts() {
         const { data, error } = await supabase
           .from('products')
           .select('*')
+<<<<<<< HEAD
           .order('name');
+=======
+>>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
 
         console.log('Načtená data z products:', data) // přidáme log pro kontrolu
 
@@ -23,11 +26,18 @@ export function useProducts() {
         if (data && data.length > 0) {
           console.log('Data před transformací:', data);
           
+<<<<<<< HEAD
           setProducts(data.map(product => ({
             ...product,
             parcel_disabled: product.parcel_disabled || false,
             multiple_boxes: product.multiple_boxes || false,
             boxes_per_item: product.boxes_per_item || 1
+=======
+          // Změníme formát dat - vracíme pole, ne objekt
+          setProducts(data.map(product => ({
+            ...product,
+            parcel_disabled: product.parcel_disabled || false
+>>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
           })));
           
           console.log('Data po transformaci:', products);
