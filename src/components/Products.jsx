@@ -8,26 +8,21 @@ const Products = () => {
   const [showNewProductForm, setShowNewProductForm] = useState(false)
   const [newProduct, setNewProduct] = useState({
     name: '',
-    items_per_box: 0,
-    items_per_pallet: 0,
+    code: '',
     image_url: '',
-<<<<<<< HEAD
     parcel_disabled: false,
     multiple_boxes: false,
-    boxes_per_item: 1
-=======
-    parcel_disabled: false
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
+    boxes_per_item: 1,
+    items_per_box: 1,
+    items_per_pallet: 0,
+    pallet_disabled: false
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
   const [deletingProduct, setDeletingProduct] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
-<<<<<<< HEAD
   const [imagePreview, setImagePreview] = useState(null)
   const [imageError, setImageError] = useState(false)
-=======
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
 
   const generateCodeFromName = (name) => {
     return name
@@ -38,7 +33,6 @@ const Products = () => {
       .replace(/^-+|-+$/g, ''); // odstranění pomlček na začátku a konci
   }
 
-<<<<<<< HEAD
   const validateImageUrl = (url) => {
     return new Promise((resolve) => {
       const img = new Image()
@@ -56,8 +50,6 @@ const Products = () => {
     })
   }
 
-=======
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
   useEffect(() => {
     const fetchProducts = async () => {
       console.log('Načítám produkty ze Supabase...')
@@ -107,7 +99,6 @@ const Products = () => {
     setSubmitError(null)
 
     try {
-<<<<<<< HEAD
       // Validate image URL first
       const isValidImage = await validateImageUrl(newProduct.image_url)
       if (!isValidImage) {
@@ -116,8 +107,6 @@ const Products = () => {
         return
       }
 
-=======
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
       const { data, error } = await supabase
         .from('products')
         .insert([{
@@ -126,14 +115,10 @@ const Products = () => {
           items_per_box: parseInt(newProduct.items_per_box),
           items_per_pallet: parseInt(newProduct.items_per_pallet),
           image_url: newProduct.image_url.trim(),
-<<<<<<< HEAD
           parcel_disabled: newProduct.parcel_disabled,
           multiple_boxes: newProduct.multiple_boxes,
-          boxes_per_item: newProduct.boxes_per_item
-=======
-          parcel_disabled: false,
-          pallet_disabled: false
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
+          boxes_per_item: newProduct.boxes_per_item,
+          pallet_disabled: newProduct.pallet_disabled
         }])
         .select()
 
@@ -142,11 +127,8 @@ const Products = () => {
       console.log('Produkt úspěšně vytvořen:', data)
       setProducts([...products, data[0]])
       setShowNewProductForm(false)
-<<<<<<< HEAD
       setImagePreview(null)
       setImageError(false)
-=======
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
     } catch (err) {
       console.error('Chyba při vytváření produktu:', err)
       setSubmitError(err.message || 'Nepodařilo se vytvořit produkt')
@@ -196,13 +178,8 @@ const Products = () => {
       </div>
 
       {showNewProductForm && (
-<<<<<<< HEAD
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]">
           <div className="bg-white rounded-lg p-6 max-w-md w-full relative z-[10000]">
-=======
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
             <h3 className="text-xl font-bold mb-4">Nový produkt</h3>
             
             {submitError && (
@@ -225,7 +202,6 @@ const Products = () => {
 
               <div>
                 <label className="block mb-1">URL obrázku</label>
-<<<<<<< HEAD
                 <div className="space-y-2">
                   <input
                     type="text"
@@ -259,15 +235,6 @@ const Products = () => {
                     </div>
                   )}
                 </div>
-=======
-                <input
-                  type="text"
-                  value={newProduct.image_url}
-                  onChange={(e) => setNewProduct({ ...newProduct, image_url: e.target.value })}
-                  className="border p-2 w-full rounded"
-                  placeholder="https://..."
-                />
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
               </div>
 
               <div>
@@ -309,7 +276,6 @@ const Products = () => {
                   min="1"
                 />
               </div>
-<<<<<<< HEAD
 
               <div className="space-y-4 mb-4">
                 <div className="flex items-center space-x-4">
@@ -347,8 +313,6 @@ const Products = () => {
                   </div>
                 )}
               </div>
-=======
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
             </div>
 
             <div className="flex justify-end gap-2 mt-6">
@@ -416,7 +380,6 @@ const Products = () => {
           <div key={product.id} className="border rounded-lg p-4 shadow-md bg-white">
             <div className="flex justify-between items-start mb-4">
               <div className="w-full">
-<<<<<<< HEAD
                 {editingProduct === `${product.id}-image` ? (
                   <div className="flex items-center gap-2 mb-2">
                     <input
@@ -493,14 +456,6 @@ const Products = () => {
                     </button>
                   </div>
                 )}
-=======
-                <img 
-                  src={product.image_url} 
-                  alt={product.name} 
-                  className="h-32 w-full object-contain" 
-                />
-                <h3 className="text-lg font-semibold mt-2">{product.name}</h3>
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
               </div>
               <button
                 onClick={() => deleteProduct(product.id)}
@@ -508,7 +463,7 @@ const Products = () => {
                 title="Smazat produkt"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414z" clipRule="evenodd" />
                 </svg>
               </button>
             </div>
@@ -610,7 +565,6 @@ const Products = () => {
                 </div>
               </div>
 
-<<<<<<< HEAD
               <div className="grid grid-cols-2 p-2 border-b hover:bg-gray-50">
                 <div className="text-center">Více krabic na položku</div>
                 <div className="flex items-center justify-center gap-2">
@@ -668,8 +622,6 @@ const Products = () => {
                 </div>
               </div>
 
-=======
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
               <div className="grid grid-cols-2 p-2 hover:bg-gray-50">
                 <div className="text-center">Omezení dopravy</div>
                 <div className="flex flex-col items-center justify-center gap-2">

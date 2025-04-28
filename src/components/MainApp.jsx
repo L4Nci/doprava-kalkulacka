@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { carriers as staticCarriers } from '../config/carriers'
-import { useProducts } from '../hooks/useProducts'
+import { useProducts } from '../hooks/useProducts.jsx'
 import { useCurrency } from '../hooks/useCurrency'
 
 function MainApp() {
@@ -113,8 +113,7 @@ function MainApp() {
     setQuantity(value)
   }
 
-  const addItem = () => {
-<<<<<<< HEAD
+  const handleAddItem = () => {
     console.log('Přidávám položku:', { productType, quantity });
     
     if (!productType || !quantity) {
@@ -162,49 +161,6 @@ function MainApp() {
     setQuantity('');
     setError(null);
   };
-=======
-    if (!productType || !quantity) return
-    
-    console.log('Přidávám produkt:', { productType, quantity });
-    
-    const product = predefinedProducts[productType]
-    if (!product) {
-      console.error('Produkt nenalezen:', productType);
-      return;
-    }
-
-    const qty = parseInt(quantity)
-    
-    console.log('Přidávám produkt:', {
-      productType,
-      product,
-      qty
-    })
-
-    // Přidáme kontrolu, že máme všechna potřebná data
-    if (!product) {
-      console.error('Chybí údaje o produktu:', product)
-      return
-    }
-
-    const boxes = product.parcelDisabled ? null : (product.boxesPerUnit ? Math.ceil(product.boxesPerUnit * qty) : null)
-    const palletUsagePercentage = product.palletDisabled ? null : (qty / product.itemsPerPallet) * 100
-    const requiredPallets = palletUsagePercentage ? Math.ceil(palletUsagePercentage / 100) : null
-
-    const newItem = { 
-      productType, 
-      quantity: qty, 
-      boxes,
-      pallets: requiredPallets,
-      palletUsagePercentage,
-      ...product 
-    }
-    
-    setSelectedItems([...selectedItems, newItem])
-    setProductType('')
-    setQuantity('')
-  }
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
 
   const removeItem = (index) => {
     setSelectedItems(prevItems => prevItems.filter((_, i) => i !== index));
@@ -228,11 +184,7 @@ function MainApp() {
 
   const calculateShipping = async () => {
     if (!validateAndCalculate()) return;
-<<<<<<< HEAD
-
-=======
     
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
     setIsLoading(true)
     try {
       const hasParcelDisabledItems = selectedItems.some(item => item.parcelDisabled);
@@ -268,30 +220,19 @@ function MainApp() {
           
           // Skip parcel options if parcel shipping is disabled
           if (hasParcelDisabledItems && shipmentType === 'balik') return;
-<<<<<<< HEAD
-
-=======
           
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
           // Skip pallet options if pallet shipping is disabled
           if (hasPalletDisabledItems && shipmentType === 'paleta') return;
 
           const pricePerUnit = service.price_per_unit || service.pricePerUnit;
           const price = pricePerUnit * (shipmentType === 'balik' ? totalBoxes : totalPallets);
-<<<<<<< HEAD
-
-=======
           
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
           if (shipmentType === 'balik' && !hasParcelDisabledItems) {
             if (!parcelOption || price < parcelOption.price) {
               parcelOption = { carrier: carrier.name, price, logo: carrier.logo_url || carrier.logoUrl, service: service.name };
             }
           }
-<<<<<<< HEAD
-
-=======
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
+          
           if (shipmentType === 'paleta' && !hasPalletDisabledItems) {
             if (!palletOption || price < palletOption.price) {
               palletOption = { carrier: carrier.name, price, logo: carrier.logo_url || carrier.logoUrl, service: service.name };
@@ -397,7 +338,7 @@ function MainApp() {
             {inputError && (
               <p className="text-red-500 text-sm mb-3">{inputError}</p>
             )}
-            <button onClick={addItem} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 w-full rounded">
+            <button onClick={handleAddItem} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 w-full rounded">
               Přidat
             </button>
           </div>
@@ -439,10 +380,7 @@ function MainApp() {
                 </button>
               </div>
             ))}
-<<<<<<< HEAD
-=======
 
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
             {selectedItems.length > 0 && (
               <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded text-sm mt-2">
                 <p className="dark:text-white"><strong>Celkový přehled:</strong></p>
@@ -466,17 +404,11 @@ function MainApp() {
                 ))}
               </select>
             </div>
-<<<<<<< HEAD
-            {error && (
-              <div className="text-red-600 text-sm mb-2">{error}</div>
-            )}
-=======
 
             {error && (
               <div className="text-red-600 text-sm mb-2">{error}</div>
             )}
 
->>>>>>> b337dffbbb7f31bdc4991e24179241cc14ad6829
             <div className="flex space-x-2 mt-4">
               <button
                 onClick={calculateShipping}
