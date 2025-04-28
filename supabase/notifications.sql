@@ -9,13 +9,8 @@ CREATE TABLE price_change_notifications (
   read BOOLEAN DEFAULT FALSE
 );
 
--- Přidání sloupce pro označení přečtených notifikací
-ALTER TABLE price_change_notifications 
-ADD COLUMN IF NOT EXISTS read BOOLEAN DEFAULT FALSE;
-
--- Index pro rychlejší filtrování nepřečtených
-CREATE INDEX IF NOT EXISTS idx_notifications_read 
-ON price_change_notifications(read);
+-- Index pro rychlejší filtrování
+CREATE INDEX idx_notifications_read ON price_change_notifications(read);
 
 -- Trigger pro sledování změn
 CREATE OR REPLACE FUNCTION log_price_changes()
@@ -23,13 +18,13 @@ RETURNS TRIGGER AS $$
 BEGIN
   IF OLD.price_per_unit != NEW.price_per_unit THEN
     INSERT INTO price_change_notifications (
-      carrier_id, 
-      service_id,
+      carrier_id,
+      service_id, 
       old_price,
       new_price
     ) VALUES (
       NEW.carrier_id,
-      NEW.id, 
+      NEW.id,
       OLD.price_per_unit,
       NEW.price_per_unit
     );

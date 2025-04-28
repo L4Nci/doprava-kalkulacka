@@ -71,15 +71,15 @@ export function PriceNotification() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">
             {unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl">
-          <div className="p-2 border-b dark:border-gray-700">
+        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl border dark:border-gray-700">
+          <div className="p-3 border-b dark:border-gray-700">
             <h3 className="font-semibold dark:text-white">Historie změn cen</h3>
           </div>
           <div className="max-h-96 overflow-y-auto">
@@ -91,33 +91,29 @@ export function PriceNotification() {
               notifications.map(notification => (
                 <div 
                   key={notification.id}
-                  className={`p-3 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
+                  className={`p-4 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
                     !notification.read ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                   }`}
                   onClick={() => markAsRead(notification.id)}
                 >
-                  <div className="flex items-center gap-2">
-                    <img 
-                      src={notification.carriers?.logo_url} 
-                      alt={notification.carriers?.name}
-                      className="h-6 w-auto" 
-                    />
-                    <div>
-                      <p className="font-medium dark:text-white">
-                        {notification.carriers?.name} - {notification.services?.name}
-                      </p>
-                      <div className="flex gap-2 text-sm">
-                        <span className="line-through text-red-500">
-                          {notification.old_price} Kč
-                        </span>
-                        <span className="text-green-500 font-bold">
-                          {notification.new_price} Kč
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {formatDate(notification.created_at)}
-                      </p>
+                  <div className="space-y-1">
+                    <p className="font-medium dark:text-white">
+                      {notification.carriers?.name}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      {notification.services?.name}
+                    </p>
+                    <div className="flex gap-2 items-center">
+                      <span className="line-through text-red-500 text-sm">
+                        {notification.old_price} Kč
+                      </span>
+                      <span className="text-green-500 font-bold">
+                        {notification.new_price} Kč
+                      </span>
                     </div>
+                    <p className="text-xs text-gray-500">
+                      {new Date(notification.created_at).toLocaleString('cs-CZ')}
+                    </p>
                   </div>
                 </div>
               ))
