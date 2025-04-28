@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { carriers as staticCarriers } from '../config/carriers'
 import { useProducts } from '../hooks/useProducts.jsx'
 import { useCurrency } from '../hooks/useCurrency'
+import { PriceNotification } from './PriceNotification'
 
 function MainApp() {
   const [carriers, setCarriers] = useState([])
@@ -307,6 +308,7 @@ function MainApp() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-6 transition-colors duration-200">
+      <PriceNotification />
       <div className="max-w-6xl mx-auto relative">
         <h1 className="text-center text-3xl font-bold text-blue-700 dark:text-blue-400 mb-1">Doprava 3.0</h1>
         <p className="text-center mb-6 text-gray-600 dark:text-gray-400">Vypočítej ideální způsob doručení</p>
