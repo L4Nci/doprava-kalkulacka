@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { carriers as staticCarriers } from '../config/carriers'
 import { useProducts } from '../hooks/useProducts.jsx'
@@ -19,7 +19,7 @@ function MainApp() {
   const [productType, setProductType] = useState('')
   const [quantity, setQuantity] = useState('')
 
-  const { products, isLoading: productsLoading } = useProducts()
+  const { products } = useProducts()
   const { convertPrice, isLoading: currencyLoading } = useCurrency()
 
   const predefinedProducts = products.reduce((acc, product) => {
@@ -43,7 +43,7 @@ function MainApp() {
   console.log('Načtené produkty:', products);
   console.log('Zpracované produkty:', predefinedProducts);
 
-  const countryNames = {
+  const countryNames = useMemo(() => ({
     CZ: "Česko",
     SK: "Slovensko",
     HR: "Chorvatsko",
@@ -51,7 +51,7 @@ function MainApp() {
     HU: "Maďarsko",
     PL: "Polsko",
     SI: "Slovinsko"
-  };
+  }), []);
 
   useEffect(() => {
     const fetchCarriers = async () => {
@@ -100,7 +100,7 @@ function MainApp() {
     }
 
     fetchCarriers();
-  }, [])
+  }, [countryNames])
 
   const handleQuantityChange = (e) => {
     const value = e.target.value

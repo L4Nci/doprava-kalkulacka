@@ -77,7 +77,7 @@ const Products = () => {
         items_per_box: updates.parcel_disabled ? null : updates.items_per_box
       };
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('products')
         .update(finalUpdates)
         .eq('id', productId)
