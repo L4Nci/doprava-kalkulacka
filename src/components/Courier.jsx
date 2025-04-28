@@ -35,7 +35,7 @@ const Courier = () => {
 
   const updateCarrier = async (carrierId, updates) => {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('carriers')
         .update(updates)
         .eq('id', carrierId)
@@ -53,7 +53,7 @@ const Courier = () => {
 
   const updateServicePrice = async (serviceId, newPrice) => {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('services')
         .update({ price_per_unit: newPrice })
         .eq('id', serviceId)
@@ -386,7 +386,7 @@ const Courier = () => {
                 title="Smazat dopravce"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 111.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 01-1.414-1.414L8.586 10 4.293 5.707a1 1 010-1.414z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 111.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 01-1.414-1.414z" clipRule="evenodd" />
                 </svg>
               </button>
             </div>
