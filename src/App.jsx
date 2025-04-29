@@ -3,6 +3,7 @@ import MainApp from './components/MainApp';
 import AdminLogin from './components/AdminLogin';
 import Admin from './components/Admin';
 import { EditIcon, CloseIcon } from './components/icons';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // API base URL - upravit cestu
 const API_URL = import.meta.env.PROD 
@@ -53,20 +54,26 @@ export default function App() {
           },
           body: JSON.stringify({
             action,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            environment: import.meta.env.MODE
           })
         });
         
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        console.log('Audit log success:', action);
         return data;
       } catch (error) {
         console.error(`Attempt ${i + 1} failed:`, error);
+        if (i === retryCount - 1) {
+          setError(`Nepodařilo se zaznamenat akci '${action}' po ${retryCount} pokusech`);
+        }
         await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
       }
     }
-    // Pouze po všech neúspěšných pokusech nastavíme error
-    setError('Nepodařilo se zaznamenat akci po několika pokusech');
   };
 
   const handleAdminSuccess = async () => {
@@ -98,42 +105,44 @@ export default function App() {
   }
 
   return (
-    <div>
-      {!showAdmin && (
-        <div>
-          <MainApp />
-          <button
-            onClick={() => setShowAdmin(true)}
-            className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-md"
-          >
-            Admin
-          </button>
-        </div>
-      )}
+    <ErrorBoundary>
+      <div>
+        {!showAdmin && (
+          <div>
+            <MainApp />
+            <button
+              onClick={() => setShowAdmin(true)}
+              className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-md"
+            >
+              Admin
+            </button>
+          </div>
+        )}
 
-      {showAdmin && !isAdminLoggedIn && (
-        <div>
-          <AdminLogin onSuccess={handleAdminSuccess} />
-          <button
-            onClick={() => setShowAdmin(false)}
-            className="fixed top-4 left-4 bg-gray-600 text-white px-4 py-2 rounded-md"
-          >
-            Zpět
-          </button>
-        </div>
-      )}
+        {showAdmin && !isAdminLoggedIn && (
+          <div>
+            <AdminLogin onSuccess={handleAdminSuccess} />
+            <button
+              onClick={() => setShowAdmin(false)}
+              className="fixed top-4 left-4 bg-gray-600 text-white px-4 py-2 rounded-md"
+            >
+              Zpět
+            </button>
+          </div>
+        )}
 
-      {showAdmin && isAdminLoggedIn && (
-        <div>
-          <Admin />
-          <button
-            onClick={handleLogout}
-            className="fixed top-4 right-4 bg-gray-600 text-white px-4 py-2 rounded-md"
-          >
-            Odhlásit
-          </button>
-        </div>
-      )}
-    </div>
+        {showAdmin && isAdminLoggedIn && (
+          <div>
+            <Admin />
+            <button
+              onClick={handleLogout}
+              className="fixed top-4 right-4 bg-gray-600 text-white px-4 py-2 rounded-md"
+            >
+              Odhlásit
+            </button>
+          </div>
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }
