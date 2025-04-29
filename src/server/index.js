@@ -20,6 +20,33 @@ app.get('/health', (req, res) => {
 
 app.use('/api', auditRouter);
 
+app.post('/api/audit-log', async (req, res) => {
+  try {
+    const { action, details, timestamp } = req.body;
+    console.log('📝 Audit Log:', {
+      action,
+      details,
+      timestamp,
+    });
+    
+    // Zde se zapisuje do Supabase
+    const { data, error } = await supabase
+      .from('audit_log')
+      .insert([{ action, details, timestamp }]);
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      throw error;
+    }
+
+    console.log('✅ Audit log saved:', data);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Audit log error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server běží na portu ${PORT}`);
 });

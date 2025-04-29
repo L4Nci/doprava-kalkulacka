@@ -3,8 +3,10 @@ import MainApp from './components/MainApp';
 import AdminLogin from './components/AdminLogin';
 import Admin from './components/Admin';
 
-// API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// API base URL - upravit cestu
+const API_URL = import.meta.env.PROD 
+  ? '/.netlify/functions'
+  : 'http://localhost:3001';
 
 // Nahraďte všechny SVG ikony za tyto validní verze
 const EditIcon = () => (
@@ -31,6 +33,12 @@ export default function App() {
   }, []);
 
   const checkServer = async () => {
+    if (import.meta.env.PROD) {
+      // V produkci předpokládáme, že server běží
+      setServerStatus('connected');
+      return;
+    }
+
     try {
       const response = await fetch(`${API_URL}/health`);
       if (response.ok) {
@@ -46,21 +54,18 @@ export default function App() {
   const logToAudit = async (action, retryCount = 3) => {
     for (let i = 0; i < retryCount; i++) {
       try {
-        const response = await fetch(`${API_URL}/api/audit-log`, {
+        const response = await fetch(`${API_URL}/audit-log`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({
             action,
             timestamp: new Date().toISOString()
           })
         });
         
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         return;
       } catch (error) {
         console.error(`Attempt ${i + 1} failed:`, error);

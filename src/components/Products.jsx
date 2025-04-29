@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { EditIcon, DeleteIcon, CheckIcon } from './icons'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 const Products = () => {
   const [products, setProducts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -51,6 +53,25 @@ const Products = () => {
     })
   }
 
+  const logToAudit = async (action, details) => {
+    try {
+      const response = await fetch(`${API_URL}/api/audit-log`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action,
+          details,
+          timestamp: new Date().toISOString()
+        })
+      });
+      if (!response.ok) throw new Error('Failed to log action');
+    } catch (error) {
+      console.error('Audit log error:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchProducts = async () => {
       console.log('Načítám produkty ze Supabase...')
@@ -87,7 +108,13 @@ const Products = () => {
 
       setProducts(products.map(p => 
         p.id === productId ? { ...p, ...finalUpdates } : p
-      ))
+      ));
+
+      // Log the update
+      await logToAudit('PRODUCT_UPDATE', {
+        productId,
+        updates: finalUpdates
+      });
     } catch (err) {
       console.error('Chyba při ukládání:', err)
     }
@@ -130,6 +157,12 @@ const Products = () => {
       setShowNewProductForm(false)
       setImagePreview(null)
       setImageError(false)
+
+      // Log the creation
+      await logToAudit('PRODUCT_CREATE', {
+        productId: data[0].id,
+        productName: data[0].name
+      });
     } catch (err) {
       console.error('Chyba při vytváření produktu:', err)
       setSubmitError(err.message || 'Nepodařilo se vytvořit produkt')
@@ -147,12 +180,20 @@ const Products = () => {
     if (deleteConfirmation.toLowerCase() !== 'smazat') return;
 
     try {
+      const productToDelete = products.find(p => p.id === deletingProduct);
+      
       const { error } = await supabase
         .from('products')
         .delete()
         .eq('id', deletingProduct);
 
       if (error) throw error;
+
+      // Log the deletion
+      await logToAudit('PRODUCT_DELETE', {
+        productId: deletingProduct,
+        productName: productToDelete?.name
+      });
 
       setProducts(products.filter(p => p.id !== deletingProduct));
       setDeletingProduct(null);
