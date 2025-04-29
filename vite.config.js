@@ -8,13 +8,31 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'generateSW',
+      injectRegister: 'auto',
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/ebkyqwtemzwrgaqplyqf\.supabase\.co\/.*/i,
+            handler: 'CacheFirst', // Změna na CacheFirst pro lepší offline podporu
+            options: {
+              cacheName: 'supabase-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          }
+        ]
+      },
       manifest: {
         name: 'Doprava 3.0',
         short_name: 'Doprava',
         description: 'Kalkulačka pro výpočet dopravy',
-        start_url: '/',
-        display: 'standalone',
-        background_color: '#ffffff',
         theme_color: '#0077cc',
         icons: [
           {
