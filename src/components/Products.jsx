@@ -28,6 +28,7 @@ const Products = () => {
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [imagePreview, setImagePreview] = useState(null)
   const [imageError, setImageError] = useState(false)
+  const [error, setError] = useState(null);
 
   const generateCodeFromName = (name) => {
     const timestamp = Date.now().toString(36);
@@ -83,23 +84,84 @@ const Products = () => {
   };
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      console.log('Načítám produkty ze Supabase...')
+    console.log('Inicializuji produkty a realtime subscription...');
+    
+    // Okamžité načtení produktů
+    fetchProducts();
+
+    // Nastavení realtime subscriptions
+    const channel = supabase
+      .channel('custom-all-channel')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products',
+        },
+        (payload) => {
+          console.log('Realtime update:', payload);
+          handleRealtimeUpdate(payload);
+        }
+      )
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
+
+    return () => {
+      console.log('Cleanup - unsubscribing...');
+      channel.unsubscribe();
+    };
+  }, []);
+
+  const handleRealtimeUpdate = (payload) => {
+    if (!payload) return;
+
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+    
+    setProducts(currentProducts => {
+      switch (eventType) {
+        case 'INSERT':
+          console.log('Inserting new product:', newRecord);
+          return [...currentProducts, newRecord];
+        
+        case 'UPDATE':
+          console.log('Updating product:', newRecord);
+          return currentProducts.map(product => 
+            product.id === newRecord.id ? newRecord : product
+          );
+        
+        case 'DELETE':
+          console.log('Deleting product:', oldRecord);
+          return currentProducts.filter(product => product.id !== oldRecord.id);
+        
+        default:
+          return currentProducts;
+      }
+    });
+  };
+
+  const fetchProducts = async () => {
+    console.log('Načítám produkty ze Supabase...');
+    try {
       const { data, error } = await supabase
         .from('products')
         .select('*')
+        .order('name', { ascending: true }); // Změna řazení podle jména
 
       if (error) {
-        console.error('Chyba při načítání produktů:', error)
-      } else {
-        console.log('Načteno produktů:', data?.length)
-        setProducts(data)
+        throw error;
       }
-      setIsLoading(false)
-    }
 
-    fetchProducts()
-  }, [])
+      console.log('Načteno produktů:', data?.length);
+      setProducts(data || []);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Chyba při načítání produktů:', error.message);
+      setError(`Nepodařilo se načíst produkty: ${error.message}`);
+      setIsLoading(false);
+    }
+  };
 
   const updateProduct = async (productId, updates) => {
     try {
@@ -119,6 +181,9 @@ const Products = () => {
       setProducts(products.map(p => 
         p.id === productId ? { ...p, ...finalUpdates } : p
       ));
+
+      // A pro jistotu znovu načteme data ze serveru
+      await fetchProducts()
 
       // Log the update
       await logToAudit('PRODUCT_UPDATE', {
@@ -213,6 +278,23 @@ const Products = () => {
 
   if (isLoading) {
     return <p className="text-gray-600">Načítám produkty...</p>
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+        <p>{error}</p>
+        <button 
+          onClick={() => {
+            setError(null);
+            fetchProducts();
+          }}
+          className="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+        >
+          Zkusit znovu
+        </button>
+      </div>
+    );
   }
 
   return (
