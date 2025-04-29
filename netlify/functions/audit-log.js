@@ -6,7 +6,6 @@ const supabase = createClient(
 );
 
 exports.handler = async (event) => {
-  // Enable CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -18,19 +17,17 @@ exports.handler = async (event) => {
   }
 
   try {
-    console.log('Received event:', event.body);
-    const { action, details } = JSON.parse(event.body);
-
+    const { action, details, user_id, user_email } = JSON.parse(event.body);
+    
     const { data, error } = await supabase
       .from('audit_log')
-      .insert([
-        {
-          action,
-          details,
-          created_at: new Date().toISOString(), // používáme created_at místo timestamp
-          user_ip: event.headers['client-ip'] || 'unknown'
-        }
-      ])
+      .insert([{
+        action,
+        details,
+        user_id,
+        user_email,
+        ip_address: event.headers['client-ip'] || 'unknown'
+      }])
       .select();
 
     if (error) {
@@ -38,7 +35,6 @@ exports.handler = async (event) => {
       throw error;
     }
 
-    console.log('Audit log saved:', data);
     return {
       statusCode: 200,
       headers,

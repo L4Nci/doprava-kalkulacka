@@ -59,6 +59,8 @@ const Products = () => {
 
   const logToAudit = async (action, details) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const response = await fetch(`${API_URL}/audit-log`, {
         method: 'POST',
         headers: {
@@ -66,8 +68,9 @@ const Products = () => {
         },
         body: JSON.stringify({
           action,
-          details
-          // odstranit timestamp, použijeme created_at v databázi
+          details,
+          user_id: user?.id,
+          user_email: user?.email
         })
       });
 
