@@ -51,6 +51,16 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
-    strictPort: true // Toto zajistí, že se použije pouze specifikovaný port
+    strictPort: true, // Toto zajistí, že se použije pouze specifikovaný port
+    hmr: {
+      timeout: 5000,
+      overlay: true
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true
+      }
+    }
   }
 })

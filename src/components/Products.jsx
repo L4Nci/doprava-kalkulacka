@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { EditIcon, DeleteIcon, CheckIcon } from './icons'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.PROD 
+  ? '/.netlify/functions'
+  : 'http://localhost:3001';
 
 const Products = () => {
   const [products, setProducts] = useState([])
@@ -28,12 +30,14 @@ const Products = () => {
   const [imageError, setImageError] = useState(false)
 
   const generateCodeFromName = (name) => {
-    return name
+    const timestamp = Date.now().toString(36);
+    const base = name
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // odstranění diakritiky
       .replace(/[^a-z0-9]+/g, '-') // nahrazení mezer a spec. znaků pomlčkou
       .replace(/^-+|-+$/g, ''); // odstranění pomlček na začátku a konci
+    return `${base}-${timestamp}`;
   }
 
   const validateImageUrl = (url) => {
@@ -55,18 +59,21 @@ const Products = () => {
 
   const logToAudit = async (action, details) => {
     try {
-      const response = await fetch(`${API_URL}/api/audit-log`, {
+      const response = await fetch(`${API_URL}/audit-log`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           action,
-          details,
-          timestamp: new Date().toISOString()
+          details
+          // odstranit timestamp, použijeme created_at v databázi
         })
       });
-      if (!response.ok) throw new Error('Failed to log action');
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to log action');
+      console.log('Audit log success:', data);
     } catch (error) {
       console.error('Audit log error:', error);
     }
@@ -135,18 +142,16 @@ const Products = () => {
         return
       }
 
+      const productCode = generateCodeFromName(newProduct.name);
       const { data, error } = await supabase
         .from('products')
         .insert([{
+          ...newProduct,
+          code: productCode,
           name: newProduct.name.trim(),
-          code: generateCodeFromName(newProduct.name),
           items_per_box: parseInt(newProduct.items_per_box),
           items_per_pallet: parseInt(newProduct.items_per_pallet),
-          image_url: newProduct.image_url.trim(),
-          parcel_disabled: newProduct.parcel_disabled,
-          multiple_boxes: newProduct.multiple_boxes,
-          boxes_per_item: newProduct.boxes_per_item,
-          pallet_disabled: newProduct.pallet_disabled
+          image_url: newProduct.image_url.trim()
         }])
         .select()
 

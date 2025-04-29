@@ -22,6 +22,17 @@ app.post('/audit-log', async (req, res) => {
   }
 });
 
+app.post('/api/audit-log', async (req, res) => {
+  try {
+    const { action, timestamp } = req.body;
+    console.log('Audit log:', { action, timestamp });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Audit log error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server běží na http://localhost:${port}`);
 });

@@ -6,44 +6,49 @@ const supabase = createClient(
 );
 
 exports.handler = async (event) => {
+  // Enable CORS
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      },
-    };
+    return { statusCode: 200, headers };
   }
 
   try {
-    const { action, timestamp } = JSON.parse(event.body);
-    
+    console.log('Received event:', event.body);
+    const { action, details } = JSON.parse(event.body);
+
     const { data, error } = await supabase
       .from('audit_log')
-      .insert([{ 
-        action,
-        timestamp,
-        user_ip: event.headers['client-ip'] || 'unknown'
-      }]);
+      .insert([
+        {
+          action,
+          details,
+          created_at: new Date().toISOString(), // používáme created_at místo timestamp
+          user_ip: event.headers['client-ip'] || 'unknown'
+        }
+      ])
+      .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
+    console.log('Audit log saved:', data);
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers,
       body: JSON.stringify({ success: true, data })
     };
   } catch (error) {
-    console.error('Audit log error:', error);
+    console.error('Function error:', error);
     return {
       statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers,
       body: JSON.stringify({ error: error.message })
     };
   }
