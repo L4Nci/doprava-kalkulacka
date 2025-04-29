@@ -20,7 +20,7 @@ function MainApp() {
   const [productType, setProductType] = useState('')
   const [quantity, setQuantity] = useState('')
 
-  const { products } = useProducts()
+  const { products, isLoading: productsLoading, refetch: refetchProducts } = useProducts()
   const { convertPrice, isLoading: currencyLoading } = useCurrency()
 
   const predefinedProducts = products.reduce((acc, product) => {
@@ -103,6 +103,28 @@ function MainApp() {
 
     fetchCarriers();
   }, [countryNames])
+
+  useEffect(() => {
+    // Přidat realtime subscription na změny produktů
+    const channel = supabase
+      .channel('main_app_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'products' 
+        },
+        async () => {
+          console.log('Products changed, refreshing...');
+          await refetchProducts();
+        }
+      )
+      .subscribe()
+
+    return () => {
+      channel.unsubscribe();
+    }
+  }, [refetchProducts])
 
   const handleQuantityChange = (e) => {
     const value = e.target.value
@@ -378,7 +400,7 @@ function MainApp() {
                   title="Odstranit položku"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l4.293 4.293a1 1 01-1.414 1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 111.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l4.293 4.293a1 1 01-1.414 1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
               </div>
