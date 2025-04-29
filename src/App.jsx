@@ -6,7 +6,7 @@ import { EditIcon, CloseIcon } from './components/icons';
 
 // API base URL - upravit cestu
 const API_URL = import.meta.env.PROD 
-  ? '/.netlify/functions'
+  ? '/.netlify/functions'  // Používáme Netlify Functions v produkci
   : 'http://localhost:3001';
 
 export default function App() {
@@ -39,6 +39,11 @@ export default function App() {
   };
 
   const logToAudit = async (action, retryCount = 3) => {
+    if (!import.meta.env.PROD && serverStatus === 'error') {
+      console.warn('Lokální server není dostupný, audit log se nezapíše');
+      return;
+    }
+
     for (let i = 0; i < retryCount; i++) {
       try {
         const response = await fetch(`${API_URL}/audit-log`, {
@@ -53,16 +58,15 @@ export default function App() {
         });
         
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Unknown error');
+        if (!response.ok) throw new Error(data.error || `HTTP error! status: ${response.status}`);
         return data;
       } catch (error) {
         console.error(`Attempt ${i + 1} failed:`, error);
-        if (i === retryCount - 1) {
-          setError(`Nepodařilo se zaznamenat akci: ${error.message}`);
-        }
         await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
       }
     }
+    // Pouze po všech neúspěšných pokusech nastavíme error
+    setError('Nepodařilo se zaznamenat akci po několika pokusech');
   };
 
   const handleAdminSuccess = async () => {

@@ -6,18 +6,14 @@ const supabase = createClient(
 );
 
 exports.handler = async (event) => {
-  // Enable CORS
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
-
-  // Handle preflight requests
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
-      headers
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      },
     };
   }
 
@@ -26,20 +22,28 @@ exports.handler = async (event) => {
     
     const { data, error } = await supabase
       .from('audit_log')
-      .insert([{ action, timestamp }]);
+      .insert([{ 
+        action,
+        timestamp,
+        user_ip: event.headers['client-ip'] || 'unknown'
+      }]);
 
     if (error) throw error;
 
     return {
       statusCode: 200,
-      headers,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify({ success: true, data })
     };
   } catch (error) {
     console.error('Audit log error:', error);
     return {
       statusCode: 500,
-      headers,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify({ error: error.message })
     };
   }
