@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { EditIcon, DeleteIcon, CheckIcon } from './icons';
 
 const Courier = () => {
   const [carriers, setCarriers] = useState([])
@@ -359,7 +360,7 @@ const Courier = () => {
                       onClick={() => setEditingCarrier(null)}
                       className="text-blue-600 hover:text-blue-800"
                     >
-                      ✓
+                      <CheckIcon />
                     </button>
                   </div>
                 ) : (
@@ -370,9 +371,7 @@ const Courier = () => {
                       className="text-gray-400 hover:text-blue-600"
                       title="Upravit název"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                      </svg>
+                      <EditIcon />
                     </button>
                   </div>
                 )}
@@ -385,9 +384,7 @@ const Courier = () => {
                 className="text-red-500 hover:text-red-700 p-1"
                 title="Smazat dopravce"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 111.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 01-1.414-1.414z" clipRule="evenodd" />
-                </svg>
+                <DeleteIcon />
               </button>
             </div>
             
@@ -415,7 +412,7 @@ const Courier = () => {
                           onClick={() => setEditingService(null)}
                           className="text-blue-600 hover:text-blue-800"
                         >
-                          ✓
+                          <CheckIcon />
                         </button>
                       </div>
                     ) : (
@@ -428,9 +425,7 @@ const Courier = () => {
                           className="text-gray-400 hover:text-blue-600"
                           title="Změnit typ přepravy"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                          </svg>
+                          <EditIcon />
                         </button>
                       </div>
                     )}
@@ -453,7 +448,7 @@ const Courier = () => {
                           onClick={() => setEditingService(null)}
                           className="text-blue-600 hover:text-blue-800"
                         >
-                          ✓
+                          <CheckIcon />
                         </button>
                       </>
                     ) : (
@@ -464,9 +459,7 @@ const Courier = () => {
                           className="text-gray-400 hover:text-blue-600"
                           title="Upravit cenu"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                          </svg>
+                          <EditIcon />
                         </button>
                       </div>
                     )}

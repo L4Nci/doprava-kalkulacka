@@ -1,21 +1,31 @@
-import { useState } from 'react'
-import Courier from './Courier'
-import Products from './Products'
+import { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
+import Courier from './Courier';
+import Products from './Products';
 
 function Admin({ onBack }) {
-  const [activeTab, setActiveTab] = useState('carriers')
+  const [activeTab, setActiveTab] = useState('carriers');
+  const [adminInfo, setAdminInfo] = useState(null);
+
+  useEffect(() => {
+    async function getAdminInfo() {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data } = await supabase
+        .from('admin_profiles')
+        .select('*')
+        .single();
+      
+      setAdminInfo(data);
+    }
+
+    getAdminInfo();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Admin Panel</h1>
-          <button
-            onClick={onBack}
-            className="bg-gray-800 text-white px-4 py-2 rounded shadow hover:bg-gray-700"
-          >
-            Zpět na aplikaci
-          </button>
         </div>
 
         <div className="mb-6">
@@ -49,7 +59,7 @@ function Admin({ onBack }) {
         {activeTab === 'products' && <Products />}
       </div>
     </div>
-  )
+  );
 }
 
-export default Admin
+export default Admin;
