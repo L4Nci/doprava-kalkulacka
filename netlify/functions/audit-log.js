@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -6,33 +6,40 @@ const supabase = createClient(
 );
 
 exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
+  // Enable CORS
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
+  // Handle preflight requests
+  if (event.httpMethod === 'OPTIONS') {
     return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
+      statusCode: 200,
+      headers
     };
   }
 
   try {
-    const { action, details, timestamp } = JSON.parse(event.body);
+    const { action, timestamp } = JSON.parse(event.body);
     
     const { data, error } = await supabase
       .from('audit_log')
-      .insert([{ action, details, timestamp }]);
+      .insert([{ action, timestamp }]);
 
     if (error) throw error;
 
     return {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
+      headers,
       body: JSON.stringify({ success: true, data })
     };
   } catch (error) {
+    console.error('Audit log error:', error);
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({ error: error.message })
     };
   }
