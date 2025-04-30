@@ -14,35 +14,25 @@ function MainApp() {
   const [isLoading, setIsLoading] = useState(false)
   const [copySuccess, setCopySuccess] = useState({ parcel: false, pallet: false })
   const [availableCountries, setAvailableCountries] = useState([])
-  const [error, setError] = useState(null)
-  const [inputError, setInputError] = useState(null)
 
   const [productType, setProductType] = useState('')
   const [quantity, setQuantity] = useState('')
 
-  const { 
-    products, 
-    isLoading: productsLoading, 
-    syncStatus = {}, 
-    refetch: refetchProducts 
-  } = useProducts()
+  const { products, isLoading: productsLoading, error, refetch: refetchProducts } = useProducts()
   const { convertPrice, isLoading: currencyLoading } = useCurrency()
 
   useEffect(() => {
-    console.log('Products sync status:', {
-      products: products.length,
-      ...syncStatus,
-      timestamp: new Date().toISOString()
-    });
-  }, [products, syncStatus]);
-
-  useEffect(() => {
-    refetchProducts();
-  }, []);
+    if (products.length > 0) {
+      console.log('📊 Stav aplikace:', {
+        početProduktů: products.length,
+        časAktualizace: new Date().toLocaleTimeString()
+      });
+    }
+  }, [products]);
 
   const predefinedProducts = products.reduce((acc, product) => {
     if (!product || !product.code) {
-      console.warn('Nalezen neplatný produkt:', product);
+      console.warn('⚠️ Nalezen neplatný produkt:', product);
       return acc;
     }
 
@@ -57,9 +47,6 @@ function MainApp() {
     return acc
   }, {})
 
-  console.log('Načtené produkty:', products);
-  console.log('Zpracované produkty:', predefinedProducts);
-
   const countryNames = useMemo(() => ({
     CZ: "Česko",
     SK: "Slovensko",
@@ -72,6 +59,7 @@ function MainApp() {
   }), []);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchCarriers = async () => {
       console.log('Načítám data ze Supabase...');
       try {
@@ -82,43 +70,44 @@ function MainApp() {
             services (
               *
             )
-          `)
+          `) // Odstraněno .single()
+          .order('name');
 
         if (error) throw error;
 
-        console.log('Načtená data:', {
+        if (!isMounted) return;
+
+        console.log('📦 Načtená data:', {
           početDopravců: data?.length || 0,
-          dopravci: data?.map(d => d.name),
-          services: data?.map(d => d.services?.length || 0)
+          časNačtení: new Date().toLocaleTimeString()
         });
 
-        if (!data || data.length === 0) {
-          console.log('Supabase je prázdná, používám záložní data');
-          setCarriers(Object.values(staticCarriers));
-        } else {
-          console.log('Používám data ze Supabase');
-          setCarriers(data);
-
-          const countries = new Set();
-          data.forEach(carrier => {
-            carrier.supported_countries?.forEach(country => {
-              countries.add(country);
-            });
+        setCarriers(data?.length ? data : Object.values(staticCarriers));
+        
+        // Zpracování dostupných zemí
+        const countries = new Set();
+        data?.forEach(carrier => {
+          carrier.supported_countries?.forEach(country => {
+            countries.add(country);
           });
-          const sortedCountries = Array.from(countries).sort((a, b) =>
-            countryNames[a]?.localeCompare(countryNames[b] || a)
-          );
-          setAvailableCountries(sortedCountries);
-          console.log('Dostupné země:', sortedCountries);
-        }
+        });
+        
+        const sortedCountries = Array.from(countries).sort((a, b) =>
+          countryNames[a]?.localeCompare(countryNames[b] || a)
+        );
+        setAvailableCountries(sortedCountries);
+        
       } catch (error) {
-        console.error('Chyba:', error.message);
-        setCarriers(Object.values(staticCarriers));
+        console.error('❌ Chyba:', error.message);
+        if (isMounted) {
+          setCarriers(Object.values(staticCarriers));
+        }
       }
-    }
+    };
 
     fetchCarriers();
-  }, [countryNames])
+    return () => { isMounted = false };
+  }, [countryNames]);
 
   useEffect(() => {
     const channel = supabase
@@ -144,11 +133,9 @@ function MainApp() {
   const handleQuantityChange = (e) => {
     const value = e.target.value
     if (value < 0) {
-      setInputError('Počet kusů nemůže být záporný')
       setQuantity('')
       return
     }
-    setInputError(null)
     setQuantity(value)
   }
 
@@ -157,7 +144,6 @@ function MainApp() {
     
     if (!productType || !quantity) {
       console.log('Chybí produkt nebo množství');
-      setError('Vyberte produkt a zadejte počet kusů');
       return;
     }
   
@@ -165,7 +151,6 @@ function MainApp() {
     
     if (!selectedProduct) {
       console.log('Produkt nebyl nalezen');
-      setError('Produkt nebyl nalezen');
       return;
     }
   
@@ -197,7 +182,6 @@ function MainApp() {
   
     setProductType('');
     setQuantity('');
-    setError(null);
   };
 
   const removeItem = (index) => {
@@ -205,15 +189,11 @@ function MainApp() {
   };
 
   const validateAndCalculate = () => {
-    setError(null)
-
     if (selectedItems.length === 0) {
-      setError('Přidejte alespoň jednu položku')
       return false
     }
 
     if (!selectedCountry) {
-      setError('Vyberte cílovou zemi')
       return false
     }
 
@@ -341,11 +321,6 @@ function MainApp() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-6">
-      {syncStatus && !syncStatus.isSubscribed && (
-        <div className="fixed top-2 right-2 bg-yellow-100 text-yellow-800 px-4 py-2 rounded shadow">
-          Offline mode
-        </div>
-      )}
       <PriceNotification />
       <div className="max-w-6xl mx-auto mb-6"></div>
       <div className="max-w-6xl mx-auto relative">
@@ -373,11 +348,8 @@ function MainApp() {
               placeholder="Kolik kusů posíláš?"
               value={quantity}
               onChange={handleQuantityChange}
-              className={`border p-2 w-full mb-1 rounded ${inputError ? 'border-red-500' : ''}`}
+              className="border p-2 w-full mb-1 rounded"
             />
-            {inputError && (
-              <p className="text-red-500 text-sm mb-3">{inputError}</p>
-            )}
             <button onClick={handleAddItem} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 w-full rounded">
               Přidat
             </button>
@@ -443,10 +415,6 @@ function MainApp() {
                 ))}
               </select>
             </div>
-
-            {error && (
-              <div className="text-red-600 text-sm mb-2">{error}</div>
-            )}
 
             <div className="flex space-x-2 mt-4">
               <button

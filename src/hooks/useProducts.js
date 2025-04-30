@@ -1,20 +1,21 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
 export function useProducts() {
   const [products, setProducts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [syncStatus, setSyncStatus] = useState({
-    lastSync: null,
-    isSubscribed: false,
-    connectionStatus: 'disconnected'
-  })
+  const isMounted = useRef(true)
+  const fetchInProgress = useRef(false)
 
-  const fetchProducts = useCallback(async (force = false) => {
-    console.log('Fetching products...', { force });
-    setIsLoading(true);
+  const fetchProducts = useCallback(async () => {
+    if (fetchInProgress.current) {
+      console.debug('🔄 Fetch already in progress, skipping...');
+      return;
+    }
 
+    fetchInProgress.current = true;
+    
     try {
       const { data, error } = await supabase
         .from('products')
@@ -22,78 +23,65 @@ export function useProducts() {
         .order('name')
 
       if (error) throw error
+      if (!isMounted.current) return;
 
+      console.debug('📦 Products loaded:', {
+        count: data?.length,
+        timestamp: new Date().toISOString()
+      });
+      
       setProducts(data || [])
-      setSyncStatus(prev => ({
-        ...prev,
-        lastSync: new Date().toISOString()
-      }))
       setError(null)
     } catch (error) {
-      console.error('Error fetching products:', error)
-      setError(error.message)
+      console.error('❌ Error:', error)
+      if (isMounted.current) {
+        setError(error.message)
+      }
     } finally {
-      setIsLoading(false)
+      fetchInProgress.current = false;
+      if (isMounted.current) {
+        setIsLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
-    console.log('Setting up realtime subscription...');
-    
+    let timeoutId;
+    console.debug('🎯 Initializing products subscription');
+
     const channel = supabase
-      .channel('products_realtime')
+      .channel('products_updates')
       .on('postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'products'
-        },
-        async (payload) => {
-          console.log('Realtime update:', payload);
-          await fetchProducts(true);
-          setSyncStatus(prev => ({
-            ...prev,
-            lastSync: new Date().toISOString()
-          }));
+        { event: '*', schema: 'public', table: 'products' },
+        (payload) => {
+          console.debug('📡 Products update:', payload.eventType);
+          // Debounce updates
+          clearTimeout(timeoutId);
+          timeoutId = setTimeout(() => {
+            if (isMounted.current) {
+              fetchProducts();
+            }
+          }, 100);
         }
       )
       .subscribe((status) => {
-        console.log('Subscription status:', status);
-        setSyncStatus(prev => ({
-          ...prev,
-          isSubscribed: status === 'SUBSCRIBED',
-          connectionStatus: status
-        }));
+        console.debug('📶 Subscription status:', status);
       });
 
-    // Initial fetch
-    fetchProducts(true);
-
-    // Polling fallback
-    const pollInterval = setInterval(() => {
-      if (!syncStatus.isSubscribed) {
-        console.log('Polling for updates...');
-        fetchProducts(true);
-      }
-    }, 30000);
+    fetchProducts();
 
     return () => {
-      console.log('Cleaning up subscription...');
+      console.debug('🧹 Cleaning up products subscription');
+      clearTimeout(timeoutId);
+      isMounted.current = false;
       channel.unsubscribe();
-      clearInterval(pollInterval);
-      setSyncStatus(prev => ({
-        ...prev,
-        isSubscribed: false,
-        connectionStatus: 'disconnected'
-      }));
-    };
+    }
   }, [fetchProducts]);
 
   return {
     products,
     isLoading,
     error,
-    syncStatus,
-    refetch: () => fetchProducts(true)
-  };
+    refetch: fetchProducts
+  }
 }
