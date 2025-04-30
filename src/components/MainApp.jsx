@@ -142,44 +142,64 @@ function MainApp() {
   const handleAddItem = () => {
     console.log('Přidávám položku:', { productType, quantity });
     
-    if (!productType || !quantity) {
-      console.log('Chybí produkt nebo množství');
-      return;
-    }
-  
+    if (!productType || !quantity) return;
+
     const selectedProduct = products.find(p => p.code === productType);
-    
-    if (!selectedProduct) {
-      console.log('Produkt nebyl nalezen');
-      return;
-    }
-  
-    const boxes = selectedProduct.parcel_disabled 
+    if (!selectedProduct) return;
+
+    // Klíčová část výpočtu využití krabice
+    const boxSpacePercentage = selectedProduct.parcel_disabled 
       ? null 
-      : (selectedProduct.multiple_boxes 
-        ? selectedProduct.boxes_per_item * parseInt(quantity) 
-        : Math.ceil(selectedProduct.items_per_box ? 1/selectedProduct.items_per_box * parseInt(quantity) : 0));
-        
-    const palletUsagePercentage = selectedProduct.pallet_disabled 
-      ? 0 
-      : (selectedProduct.items_per_pallet 
-        ? (parseInt(quantity) / selectedProduct.items_per_pallet) * 100 
-        : 0);
-  
+      : (100 / selectedProduct.items_per_box); // 1ks = X% krabice
+
+    // items_per_box skutečně představuje MAXIMÁLNÍ počet kusů v krabici
+    // Příklad: items_per_box = 20 znamená, že 1ks zabere 5% krabice
+
+    const boxUsage = boxSpacePercentage 
+      ? (boxSpacePercentage * parseInt(quantity))
+      : null;
+
+    // Diagnostika výpočtů pro krabice
+    console.group('📦 Přidávání položky - výpočty');
+    console.log('Produkt:', {
+      název: selectedProduct.name,
+      maxKusůVKrabici: selectedProduct.items_per_box,
+      procentKrabiceNaKus: boxSpacePercentage
+    });
+    
+    console.log('Výpočty:', {
+      početKusů: parseInt(quantity),
+      využitíKrabice: boxUsage,
+      početKrabic: Math.ceil(boxUsage / 100),
+      využitíPoslední: boxUsage % 100
+    });
+
+    console.log('Palety:', {
+      maxKusůNaPaletě: selectedProduct.items_per_pallet,
+      využitíPalety: `${((parseInt(quantity) / selectedProduct.items_per_pallet) * 100).toFixed(1)}%`,
+      početPalet: Math.ceil((parseInt(quantity) / selectedProduct.items_per_pallet))
+    });
+    console.groupEnd();
+
     setSelectedItems(prevItems => [
       ...prevItems,
       {
         id: Date.now(),
         name: selectedProduct.name,
         quantity: parseInt(quantity),
-        boxes,
-        palletUsagePercentage,
+        boxSpacePercentage: boxUsage,
+        boxesCount: Math.ceil(boxUsage / 100), // Celé krabice
+        palletUsagePercentage: selectedProduct.pallet_disabled 
+          ? 0 
+          : (selectedProduct.items_per_pallet 
+            ? (parseInt(quantity) / selectedProduct.items_per_pallet) * 100 
+            : 0),
         image: selectedProduct.image_url,
         parcelDisabled: selectedProduct.parcel_disabled,
         palletDisabled: selectedProduct.pallet_disabled
       }
     ]);
-  
+
     setProductType('');
     setQuantity('');
   };
@@ -208,11 +228,11 @@ function MainApp() {
       const hasParcelDisabledItems = selectedItems.some(item => item.parcelDisabled);
       const hasPalletDisabledItems = selectedItems.some(item => item.palletDisabled);
       
-      const totalBoxes = hasParcelDisabledItems ? null : Math.ceil(
-        selectedItems
-          .filter(item => !item.parcelDisabled)
-          .reduce((sum, item) => sum + item.boxes, 0)
-      );
+      const totalBoxUsage = selectedItems
+        .filter(item => !item.parcelDisabled)
+        .reduce((sum, item) => sum + item.boxSpacePercentage, 0);
+
+      const totalBoxes = Math.ceil(totalBoxUsage / 100);
 
       const totalPallets = hasPalletDisabledItems ? null : Math.ceil(
         selectedItems
@@ -225,6 +245,21 @@ function MainApp() {
       let palletOption = null;
 
       const carriersToUse = carriers.length > 0 ? carriers : Object.values(staticCarriers);
+
+      console.group('🚚 Výpočet dopravy');
+      console.log('Celkové využití:', {
+        krabice: `${totalBoxUsage.toFixed(1)}% (${totalBoxes} ks)`,
+        palety: `${totalPallets} ks`,
+        země: country
+      });
+      
+      console.table(carriersToUse.map(carrier => ({
+        dopravce: carrier.name,
+        země: carrier.supported_countries,
+        balík: carrier.services.find(s => s.shipment_type === 'balik')?.price_per_unit,
+        paleta: carrier.services.find(s => s.shipment_type === 'paleta')?.price_per_unit
+      })));
+      console.groupEnd();
 
       carriersToUse.forEach(carrier => {
         const supportedCountries = carrier.supported_countries || carrier.supportedCountries;
@@ -312,9 +347,23 @@ function MainApp() {
     )
   }
 
+  const ProgressBar = ({ percentage, label }) => (
+    <>
+      <p className="text-sm text-gray-600">
+        {label}: {percentage.toFixed(1)}%
+      </p>
+      <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+        <div 
+          className="bg-blue-600 h-2.5 rounded-full transition-all"
+          style={{ width: `${Math.min(100, percentage)}%` }}
+        />
+      </div>
+    </>
+  );
+
   const totalBoxes = selectedItems.some(item => item.parcelDisabled) 
     ? "Není k dispozici (pouze paletová přeprava)" 
-    : Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxes, 0));
+    : Math.ceil(selectedItems.reduce((sum, item) => sum + item.boxSpacePercentage, 0) / 100);
   const totalPallets = Math.ceil(
     selectedItems.reduce((sum, item) => sum + item.palletUsagePercentage, 0) / 100
   );
@@ -364,18 +413,35 @@ function MainApp() {
                   <div>
                     <p className="font-medium dark:text-white">{item.name}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">Počet kusů: {item.quantity}</p>
+                    
+                    {!item.parcelDisabled && (
+                      <div className="mt-1">
+                        <ProgressBar 
+                          percentage={item.boxSpacePercentage} 
+                          label="Využití krabice" 
+                        />
+                      </div>
+                    )}
+                    
+                    {!item.palletDisabled && (
+                      <div className="mt-1">
+                        <ProgressBar 
+                          percentage={item.palletUsagePercentage} 
+                          label="Obsazenost palety" 
+                        />
+                      </div>
+                    )}
+
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {item.parcelDisabled 
                         ? "Nelze odeslat na balíky"
-                        : `Počet krabic: ${Math.ceil(item.boxes)}`
+                        : `Počet krabic: ${item.boxesCount}`
                       }
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {item.palletDisabled
                         ? "Nelze odeslat na paletě"
-                        : `Obsazenost palety: ${item.palletUsagePercentage.toFixed(0)}% (${item.pallets} ${
-                            item.pallets === 1 ? 'paleta' : item.pallets >= 2 && item.pallets <= 4 ? 'palety' : 'palet'
-                          })`
+                        : `Počet palet: ${Math.ceil(item.palletUsagePercentage / 100)}`
                       }
                     </p>
                   </div>
@@ -386,7 +452,7 @@ function MainApp() {
                   title="Odstranit položku"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 111.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l4.293 4.293a1 1 01-1.414 1.414L8.586 10 4.293 5.707a1 1 010-1.414z" clipRule="evenodd" />
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
                   </svg>
                 </button>
               </div>

@@ -1,6 +1,6 @@
 export const productPackaging = {
   'polstar': { 
-    itemsPerBox: 10, 
+    items_per_box: 10,  // 1ks zabere 10% krabice
     palettePercentage: 0.2,
     imageUrl: 'https://cdn.myshoptet.com/usr/www.vyprodejpovleceni.cz/user/shop/big/35707_polstar-economy-neprosity-70-x-90-cm.jpg?6201048e'
   },

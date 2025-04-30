@@ -8,6 +8,16 @@ export function useProducts() {
   const isMounted = useRef(true)
   const fetchInProgress = useRef(false)
 
+  const calculateBoxUsage = (product, quantity) => {
+    if (product.parcel_disabled) return null;
+    
+    const spacePerItem = 100 / product.items_per_box;
+    return {
+      percentage: spacePerItem * quantity,
+      boxes: Math.ceil((spacePerItem * quantity) / 100)
+    };
+  };
+
   const fetchProducts = useCallback(async () => {
     if (fetchInProgress.current) {
       console.debug('🔄 Fetch already in progress, skipping...');

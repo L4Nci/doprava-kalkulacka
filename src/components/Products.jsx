@@ -387,7 +387,7 @@ const Products = () => {
 
               {!newProduct.parcel_disabled && (
                 <div>
-                  <label className="block mb-1">Kusů v krabici</label>
+                  <label className="block mb-1">Max. kusů v krabici</label>
                   <input
                     type="number"
                     value={newProduct.items_per_box}
@@ -601,7 +601,7 @@ const Products = () => {
               </div>
               
               <div className="grid grid-cols-2 p-2 border-b hover:bg-gray-50">
-                <div className="text-center">Kusů v krabici</div>
+                <div className="text-center">Max kusů v krabici</div>
                 <div className="flex items-center justify-center gap-2">
                   {editingProduct === `${product.id}-box` ? (
                     <>
