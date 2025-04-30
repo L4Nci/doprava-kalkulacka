@@ -20,8 +20,25 @@ function MainApp() {
   const [productType, setProductType] = useState('')
   const [quantity, setQuantity] = useState('')
 
-  const { products, isLoading: productsLoading, refetch: refetchProducts } = useProducts()
+  const { 
+    products, 
+    isLoading: productsLoading, 
+    syncStatus = {}, 
+    refetch: refetchProducts 
+  } = useProducts()
   const { convertPrice, isLoading: currencyLoading } = useCurrency()
+
+  useEffect(() => {
+    console.log('Products sync status:', {
+      products: products.length,
+      ...syncStatus,
+      timestamp: new Date().toISOString()
+    });
+  }, [products, syncStatus]);
+
+  useEffect(() => {
+    refetchProducts();
+  }, []);
 
   const predefinedProducts = products.reduce((acc, product) => {
     if (!product || !product.code) {
@@ -40,7 +57,6 @@ function MainApp() {
     return acc
   }, {})
 
-  // Přidáme debug log
   console.log('Načtené produkty:', products);
   console.log('Zpracované produkty:', predefinedProducts);
 
@@ -105,7 +121,6 @@ function MainApp() {
   }, [countryNames])
 
   useEffect(() => {
-    // Přidat realtime subscription na změny produktů
     const channel = supabase
       .channel('main_app_changes')
       .on('postgres_changes', 
@@ -180,7 +195,6 @@ function MainApp() {
       }
     ]);
   
-    // Reset formuláře
     setProductType('');
     setQuantity('');
     setError(null);
@@ -214,14 +228,12 @@ function MainApp() {
       const hasParcelDisabledItems = selectedItems.some(item => item.parcelDisabled);
       const hasPalletDisabledItems = selectedItems.some(item => item.palletDisabled);
       
-      // Počítáme balíky pouze pokud nemáme zakázané položky pro balíky
       const totalBoxes = hasParcelDisabledItems ? null : Math.ceil(
         selectedItems
           .filter(item => !item.parcelDisabled)
           .reduce((sum, item) => sum + item.boxes, 0)
       );
 
-      // Počítáme palety pouze pokud nemáme zakázané položky pro palety
       const totalPallets = hasPalletDisabledItems ? null : Math.ceil(
         selectedItems
           .filter(item => !item.palletDisabled)
@@ -242,10 +254,8 @@ function MainApp() {
         services.forEach(service => {
           const shipmentType = service.shipment_type || service.shipmentType;
           
-          // Skip parcel options if parcel shipping is disabled
           if (hasParcelDisabledItems && shipmentType === 'balik') return;
           
-          // Skip pallet options if pallet shipping is disabled
           if (hasPalletDisabledItems && shipmentType === 'paleta') return;
 
           const pricePerUnit = service.price_per_unit || service.pricePerUnit;
@@ -330,14 +340,19 @@ function MainApp() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-6 transition-colors duration-200">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-6">
+      {syncStatus && !syncStatus.isSubscribed && (
+        <div className="fixed top-2 right-2 bg-yellow-100 text-yellow-800 px-4 py-2 rounded shadow">
+          Offline mode
+        </div>
+      )}
       <PriceNotification />
+      <div className="max-w-6xl mx-auto mb-6"></div>
       <div className="max-w-6xl mx-auto relative">
         <h1 className="text-center text-3xl font-bold text-blue-700 dark:text-blue-400 mb-1">Doprava 3.0</h1>
         <p className="text-center mb-6 text-gray-600 dark:text-gray-400">Vypočítej ideální způsob doručení</p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Vstup */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded shadow">
             <label className="block font-medium mb-1 dark:text-white">Vyberte typ produktu:</label>
             <select
@@ -368,7 +383,6 @@ function MainApp() {
             </button>
           </div>
 
-          {/* Seznam položek */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded shadow">
             <h3 className="font-bold text-lg mb-4 dark:text-white">Seznam položek</h3>
             {selectedItems.map((item, idx) => (
@@ -400,7 +414,7 @@ function MainApp() {
                   title="Odstranit položku"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 111.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l4.293 4.293a1 1 01-1.414 1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 111.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l4.293 4.293a1 1 01-1.414 1.414L8.586 10 4.293 5.707a1 1 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
               </div>
@@ -453,7 +467,6 @@ function MainApp() {
             </div>
           </div>
 
-          {/* Výsledek */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded shadow">
             <h3 className="font-bold text-lg mb-4 dark:text-white">Doporučený dopravce</h3>
             
