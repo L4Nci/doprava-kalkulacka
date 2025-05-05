@@ -147,37 +147,29 @@ function MainApp() {
     const selectedProduct = products.find(p => p.code === productType);
     if (!selectedProduct) return;
 
-    // Klíčová část výpočtu využití krabice
+    // 1. Nejdřív spočítáme CELKOVÝ počet krabic (4 postele × 2 krabice na postel = 8 krabic)
+    const totalBoxesNeeded = selectedProduct.multiple_boxes 
+      ? parseInt(quantity) * selectedProduct.boxes_per_item // 4 × 2 = 8 krabic
+      : parseInt(quantity);
+
+    // 2. Pak spočítáme využití prostoru v JEDNÉ krabici (100% na kus)
     const boxSpacePercentage = selectedProduct.parcel_disabled 
       ? null 
-      : (100 / selectedProduct.items_per_box); // 1ks = X% krabice
+      : (100 / selectedProduct.items_per_box); // 100 / 1 = 100%
 
-    // items_per_box skutečně představuje MAXIMÁLNÍ počet kusů v krabici
-    // Příklad: items_per_box = 20 znamená, že 1ks zabere 5% krabice
-
+    // 3. Nakonec spočítáme celkové využití prostoru (8 krabic × 100% = 800%)
     const boxUsage = boxSpacePercentage 
-      ? (boxSpacePercentage * parseInt(quantity))
+      ? (boxSpacePercentage * totalBoxesNeeded) // 100% × 8 = 800%
       : null;
 
-    // Diagnostika výpočtů pro krabice
     console.group('📦 Přidávání položky - výpočty');
     console.log('Produkt:', {
       název: selectedProduct.name,
       maxKusůVKrabici: selectedProduct.items_per_box,
-      procentKrabiceNaKus: boxSpacePercentage
-    });
-    
-    console.log('Výpočty:', {
-      početKusů: parseInt(quantity),
-      využitíKrabice: boxUsage,
-      početKrabic: Math.ceil(boxUsage / 100),
-      využitíPoslední: boxUsage % 100
-    });
-
-    console.log('Palety:', {
-      maxKusůNaPaletě: selectedProduct.items_per_pallet,
-      využitíPalety: `${((parseInt(quantity) / selectedProduct.items_per_pallet) * 100).toFixed(1)}%`,
-      početPalet: Math.ceil((parseInt(quantity) / selectedProduct.items_per_pallet))
+      víceKrabicNaPoložku: selectedProduct.multiple_boxes,
+      početKrabicNaPoložku: selectedProduct.boxes_per_item,
+      zadanýPočetKusů: parseInt(quantity),
+      celkovýPočetKrabic: totalBoxesNeeded
     });
     console.groupEnd();
 
@@ -196,7 +188,10 @@ function MainApp() {
             : 0),
         image: selectedProduct.image_url,
         parcelDisabled: selectedProduct.parcel_disabled,
-        palletDisabled: selectedProduct.pallet_disabled
+        palletDisabled: selectedProduct.pallet_disabled,
+        multiple_boxes: selectedProduct.multiple_boxes,
+        boxes_per_item: selectedProduct.boxes_per_item,
+        totalBoxesForItem: totalBoxesNeeded
       }
     ]);
 
