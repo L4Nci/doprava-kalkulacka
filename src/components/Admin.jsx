@@ -9,13 +9,42 @@ function Admin({ onBack }) {
 
   useEffect(() => {
     async function getAdminInfo() {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data } = await supabase
-        .from('admin_profiles')
-        .select('*')
-        .single();
-      
-      setAdminInfo(data);
+      try {
+        const {
+          data: { user },
+          error: userError
+        } = await supabase.auth.getUser();
+
+        if (userError) {
+          console.error('Chyba při načítání přihlášeného uživatele:', userError);
+          return;
+        }
+
+        if (!user) {
+          console.error('Není přihlášený žádný uživatel.');
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('admin_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Chyba při načítání admin profilu:', error);
+          return;
+        }
+
+        if (!data) {
+          console.error('Admin profil nebyl nalezen.');
+          return;
+        }
+
+        setAdminInfo(data);
+      } catch (error) {
+        console.error('Neočekávaná chyba při načítání admin profilu:', error);
+      }
     }
 
     getAdminInfo();
@@ -41,6 +70,7 @@ function Admin({ onBack }) {
               >
                 Dopravci
               </button>
+
               <button
                 onClick={() => setActiveTab('products')}
                 className={`${
