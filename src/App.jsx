@@ -4,6 +4,7 @@ import AdminLogin from './components/AdminLogin';
 import Admin from './components/Admin';
 import { EditIcon, CloseIcon } from './components/icons';
 import ErrorBoundary from './components/ErrorBoundary';
+import { supabase } from './lib/supabaseClient';
 
 // API base URL - upravit cestu
 const API_URL = import.meta.env.PROD 
@@ -47,16 +48,21 @@ export default function App() {
 
     for (let i = 0; i < retryCount; i++) {
       try {
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          throw new Error('Uživatel není přihlášen');
+        }
+
         const response = await fetch(`${API_URL}/audit-log`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({
-            action,
-            timestamp: new Date().toISOString(),
-            environment: import.meta.env.MODE
-          })
+          body: JSON.stringify({ action })
         });
         
         if (!response.ok) {
