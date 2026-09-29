@@ -21,11 +21,15 @@ export default function AdminLogin({ onSuccess }) {
       console.log('Auth successful:', data);
 
       // Kontrola admin práv
-      const { data: admin } = await supabase
+      const { data: admin, error: adminError } = await supabase
         .from('admin_profiles')
         .select('is_super_admin')
         .eq('id', data.user.id)
-        .single();
+        .maybeSingle();
+
+      if (adminError) {
+        throw adminError;
+      }
 
       if (!admin?.is_super_admin) {
         await supabase.auth.signOut();
