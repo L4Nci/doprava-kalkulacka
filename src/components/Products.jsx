@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { EditIcon, DeleteIcon, CheckIcon } from './icons'
 
@@ -6,7 +6,14 @@ const API_URL = import.meta.env.PROD
   ? '/.netlify/functions'
   : 'http://localhost:3001';
 
+import { createAdminMutations, productPatch } from '../services/adminMutations'
+import { useAdminMutation } from '../hooks/useAdminMutation'
+
+const mutations = createAdminMutations(supabase)
+
 const Products = () => {
+  const mutation = useAdminMutation()
+  const [productDraft, setProductDraft] = useState({})
   const [products, setProducts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [editingProduct, setEditingProduct] = useState(null)
@@ -19,10 +26,10 @@ const Products = () => {
     multiple_boxes: false,
     boxes_per_item: 1,
     items_per_box: 1,
-    items_per_pallet: 0,
+    items_per_pallet: 1,
     pallet_disabled: false
   })
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const isSubmitting = mutation.pending
   const [submitError, setSubmitError] = useState(null)
   const [deletingProduct, setDeletingProduct] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
@@ -44,12 +51,15 @@ const Products = () => {
   const validateImageUrl = (url) => {
     return new Promise((resolve) => {
       const img = new Image()
+      const timeout = setTimeout(() => { img.onload = null; img.onerror = null; resolve(false); }, 8000)
       img.onload = () => {
+        clearTimeout(timeout)
         setImageError(false)
         setImagePreview(url)
         resolve(true)
       }
       img.onerror = () => {
+        clearTimeout(timeout)
         setImageError(true)
         setImagePreview(null)
         resolve(false)
@@ -60,18 +70,18 @@ const Products = () => {
 
   const logToAudit = async (action, details) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Chybí přihlášení pro audit.');
       
       const response = await fetch(`${API_URL}/audit-log`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           action,
           details,
-          user_id: user?.id,
-          user_email: user?.email
         })
       });
 
@@ -79,201 +89,73 @@ const Products = () => {
       if (!response.ok) throw new Error(data.error || 'Failed to log action');
       console.log('Audit log success:', data);
     } catch (error) {
-      console.error('Audit log error:', error);
+      setSubmitError(`Změna dat byla potvrzena, ale audit se nezapsal: ${error.message}`);
     }
   };
 
-  useEffect(() => {
-    console.log('Inicializuji produkty a realtime subscription...');
-    
-    // Okamžité načtení produktů
-    fetchProducts();
-
-    // Nastavení realtime subscriptions
-    const channel = supabase
-      .channel('custom-all-channel')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'products',
-        },
-        (payload) => {
-          console.log('Realtime update:', payload);
-          handleRealtimeUpdate(payload);
-        }
-      )
-      .subscribe((status) => {
-        console.log('Subscription status:', status);
-      });
-
-    return () => {
-      console.log('Cleanup - unsubscribing...');
-      channel.unsubscribe();
-    };
+  const fetchProducts = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from('products').select('*').order('name');
+      if (error) throw error;
+      setProducts(data || []);
+      setError(null);
+    } catch (failure) {
+      setError(`Nepodařilo se načíst produkty: ${failure.message}`);
+    } finally { setIsLoading(false); }
   }, []);
 
-  const handleRealtimeUpdate = (payload) => {
-    if (!payload) return;
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
-    const { eventType, new: newRecord, old: oldRecord } = payload;
-    
-    setProducts(currentProducts => {
-      switch (eventType) {
-        case 'INSERT':
-          console.log('Inserting new product:', newRecord);
-          return [...currentProducts, newRecord];
-        
-        case 'UPDATE':
-          console.log('Updating product:', newRecord);
-          return currentProducts.map(product => 
-            product.id === newRecord.id ? newRecord : product
-          );
-        
-        case 'DELETE':
-          console.log('Deleting product:', oldRecord);
-          return currentProducts.filter(product => product.id !== oldRecord.id);
-        
-        default:
-          return currentProducts;
-      }
-    });
-  };
-
-  const fetchProducts = async () => {
-    console.log('Načítám produkty ze Supabase...');
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('name', { ascending: true }); // Změna řazení podle jména
-
-      if (error) {
-        throw error;
-      }
-
-      console.log('Načteno produktů:', data?.length);
-      setProducts(data || []);
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Chyba při načítání produktů:', error.message);
-      setError(`Nepodařilo se načíst produkty: ${error.message}`);
-      setIsLoading(false);
-    }
+  const startEditing = (product, field) => {
+    setProductDraft({});
+    setEditingProduct(`${product.id}-${field}`);
   };
 
   const updateProduct = async (productId, updates) => {
-    try {
-      // If we're disabling parcel shipping, set items_per_box to null
-      const finalUpdates = {
-        ...updates,
-        items_per_box: updates.parcel_disabled ? null : updates.items_per_box
-      };
+    await mutation.run(async () => {
+      const current = products.find(p => p.id === productId);
+      const patch = productPatch(current, updates);
+      const saved = await mutations.update('products', productId, patch);
+      setProducts(rows => rows.map(p => p.id === productId ? saved : p));
+      await logToAudit('PRODUCT_UPDATE', { productId, updates: patch });
+    });
+    setProductDraft({});
+    setEditingProduct(null);
+  };
 
-      const { error } = await supabase
-        .from('products')
-        .update(finalUpdates)
-        .eq('id', productId)
+  const saveProductDraft = (product) => {
+    if (!Object.keys(productDraft).length) { setEditingProduct(null); return; }
+    return updateProduct(product.id, productDraft);
+  };
 
-      if (error) throw error
+  const addNewProduct = () => mutation.run(async () => {
+    setSubmitError(null);
+    if (!await validateImageUrl(newProduct.image_url)) throw new Error('Neplatná URL obrázku.');
+    const values = productPatch({}, { ...newProduct,
+      code: generateCodeFromName(newProduct.name), image_url: newProduct.image_url.trim() });
+    const saved = await mutations.insert('products', values);
+    setProducts(rows => [...rows.filter(p => p.id !== saved.id), saved]);
+    setShowNewProductForm(false);
+    setImagePreview(null);
+    setImageError(false);
+    await logToAudit('PRODUCT_CREATE', { productId: saved.id, productName: saved.name });
+  });
 
-      setProducts(products.map(p => 
-        p.id === productId ? { ...p, ...finalUpdates } : p
-      ));
-
-      // A pro jistotu znovu načteme data ze serveru
-      await fetchProducts()
-
-      // Log the update
-      await logToAudit('PRODUCT_UPDATE', {
-        productId,
-        updates: finalUpdates
-      });
-    } catch (err) {
-      console.error('Chyba při ukládání:', err)
-    }
-  }
-
-  const addNewProduct = async () => {
-    if (isSubmitting) return; // Prevent double submission
-    
-    setIsSubmitting(true)
-    setSubmitError(null)
-
-    try {
-      // Validate image URL first
-      const isValidImage = await validateImageUrl(newProduct.image_url)
-      if (!isValidImage) {
-        setSubmitError('Neplatná URL obrázku')
-        setIsSubmitting(false)
-        return
-      }
-
-      const productCode = generateCodeFromName(newProduct.name);
-      const { data, error } = await supabase
-        .from('products')
-        .insert([{
-          ...newProduct,
-          code: productCode,
-          name: newProduct.name.trim(),
-          items_per_box: parseInt(newProduct.items_per_box),
-          items_per_pallet: parseInt(newProduct.items_per_pallet),
-          image_url: newProduct.image_url.trim()
-        }])
-        .select()
-
-      if (error) throw error
-
-      console.log('Produkt úspěšně vytvořen:', data)
-      setProducts([...products, data[0]])
-      setShowNewProductForm(false)
-      setImagePreview(null)
-      setImageError(false)
-
-      // Log the creation
-      await logToAudit('PRODUCT_CREATE', {
-        productId: data[0].id,
-        productName: data[0].name
-      });
-    } catch (err) {
-      console.error('Chyba při vytváření produktu:', err)
-      setSubmitError(err.message || 'Nepodařilo se vytvořit produkt')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const deleteProduct = async (productId) => {
+  const deleteProduct = (productId) => {
     setDeletingProduct(productId);
     setDeleteConfirmation('');
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = () => {
     if (deleteConfirmation.toLowerCase() !== 'smazat') return;
-
-    try {
-      const productToDelete = products.find(p => p.id === deletingProduct);
-      
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', deletingProduct);
-
-      if (error) throw error;
-
-      // Log the deletion
-      await logToAudit('PRODUCT_DELETE', {
-        productId: deletingProduct,
-        productName: productToDelete?.name
-      });
-
-      setProducts(products.filter(p => p.id !== deletingProduct));
+    return mutation.run(async () => {
+      const product = products.find(p => p.id === deletingProduct);
+      await mutations.remove('products', deletingProduct);
+      setProducts(rows => rows.filter(p => p.id !== deletingProduct));
       setDeletingProduct(null);
       setDeleteConfirmation('');
-    } catch (err) {
-      console.error('Chyba při mazání produktu:', err);
-    }
+      await logToAudit('PRODUCT_DELETE', { productId: product.id, productName: product.name });
+    });
   };
 
   if (isLoading) {
@@ -287,8 +169,9 @@ const Products = () => {
         <button 
           onClick={() => {
             setError(null);
-            fetchProducts();
+            mutation.run(fetchProducts);
           }}
+          disabled={mutation.pending}
           className="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
         >
           Zkusit znovu
@@ -299,6 +182,12 @@ const Products = () => {
 
   return (
     <div className="p-4">
+      {(mutation.error || submitError) && <div role="alert" className="sticky top-4 z-[11000] mb-4 bg-red-100 text-red-800 p-4 rounded">
+        {mutation.error || submitError}
+        <button disabled={mutation.pending} className="ml-4 underline" onClick={() => { mutation.clearError(); setSubmitError(null); mutation.run(fetchProducts); }}>Obnovit data</button>
+      </div>}
+      {mutation.pending && <p role="status">Ověřuji zápis v databázi…</p>}
+      <fieldset disabled={mutation.pending} className="min-w-0">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Produkty</h2>
         <button
@@ -376,8 +265,7 @@ const Products = () => {
                     checked={!newProduct.parcel_disabled}
                     onChange={(e) => setNewProduct({ 
                       ...newProduct, 
-                      parcel_disabled: !e.target.checked,
-                      items_per_box: !e.target.checked ? null : newProduct.items_per_box 
+                      parcel_disabled: !e.target.checked
                     })}
                     className="w-4 h-4"
                   />
@@ -516,19 +404,13 @@ const Products = () => {
                   <div className="flex items-center gap-2 mb-2">
                     <input
                       type="text"
-                      value={product.image_url}
-                      onChange={(e) => {
-                        const updatedProduct = { ...product, image_url: e.target.value };
-                        updateProduct(product.id, { image_url: e.target.value });
-                        setProducts(products.map(p => 
-                          p.id === product.id ? updatedProduct : p
-                        ));
-                      }}
+                      value={productDraft.image_url ?? product.image_url}
+                      onChange={(e) => setProductDraft(draft => ({ ...draft, image_url: e.target.value }))}
                       className="border rounded px-2 py-1 w-full"
                       placeholder="URL obrázku..."
                     />
                     <button
-                      onClick={() => setEditingProduct(null)}
+                      onClick={() => saveProductDraft(product)}
                       className="text-blue-600 hover:text-blue-800"
                     >
                       <CheckIcon />
@@ -542,7 +424,7 @@ const Products = () => {
                       className="h-32 w-full object-contain" 
                     />
                     <button
-                      onClick={() => setEditingProduct(`${product.id}-image`)}
+                      onClick={() => startEditing(product, 'image')}
                       className="absolute top-0 right-0 bg-white/80 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Upravit URL obrázku"
                     >
@@ -555,18 +437,12 @@ const Products = () => {
                   <div className="flex items-center gap-2 mt-2">
                     <input
                       type="text"
-                      value={product.name}
-                      onChange={(e) => {
-                        const updatedProduct = { ...product, name: e.target.value };
-                        updateProduct(product.id, { name: e.target.value });
-                        setProducts(products.map(p => 
-                          p.id === product.id ? updatedProduct : p
-                        ));
-                      }}
+                      value={productDraft.name ?? product.name}
+                      onChange={(e) => setProductDraft(draft => ({ ...draft, name: e.target.value }))}
                       className="border rounded px-2 py-1 w-full"
                     />
                     <button
-                      onClick={() => setEditingProduct(null)}
+                      onClick={() => saveProductDraft(product)}
                       className="text-blue-600 hover:text-blue-800"
                     >
                       <CheckIcon />
@@ -576,7 +452,7 @@ const Products = () => {
                   <div className="flex items-center justify-between mt-2">
                     <h3 className="text-lg font-semibold">{product.name}</h3>
                     <button
-                      onClick={() => setEditingProduct(`${product.id}-name`)}
+                      onClick={() => startEditing(product, 'name')}
                       className="text-gray-400 hover:text-blue-600"
                       title="Upravit název"
                     >
@@ -607,18 +483,13 @@ const Products = () => {
                     <>
                       <input
                         type="number"
-                        value={product.items_per_box}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value)
-                          if (!isNaN(value)) {
-                            updateProduct(product.id, { items_per_box: value })
-                          }
-                        }}
+                        value={productDraft.items_per_box ?? product.items_per_box}
+                        onChange={(e) => setProductDraft(draft => ({ ...draft, items_per_box: e.target.value }))}
                         className="border rounded w-20 px-2 py-1 text-right"
                         disabled={product.parcel_disabled}
                       />
                       <button
-                        onClick={() => setEditingProduct(null)}
+                        onClick={() => saveProductDraft(product)}
                         className="text-blue-600 hover:text-blue-800"
                       >
                         <CheckIcon />
@@ -631,7 +502,7 @@ const Products = () => {
                       </span>
                       {!product.parcel_disabled && (
                         <button
-                          onClick={() => setEditingProduct(`${product.id}-box`)}
+                          onClick={() => startEditing(product, 'box')}
                           className="text-gray-400 hover:text-blue-600"
                           title="Upravit hodnotu"
                         >
@@ -650,19 +521,14 @@ const Products = () => {
                     <>
                       <input
                         type="number"
-                        value={product.items_per_pallet}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value)
-                          if (!isNaN(value) && value > 0) {
-                            updateProduct(product.id, { items_per_pallet: value })
-                          }
-                        }}
+                        value={productDraft.items_per_pallet ?? product.items_per_pallet}
+                        onChange={(e) => setProductDraft(draft => ({ ...draft, items_per_pallet: e.target.value }))}
                         className="border rounded w-20 px-2 py-1 text-right"
                         min="1"
                         disabled={product.pallet_disabled}
                       />
                       <button
-                        onClick={() => setEditingProduct(null)}
+                        onClick={() => saveProductDraft(product)}
                         className="text-blue-600 hover:text-blue-800"
                       >
                         <CheckIcon />
@@ -675,7 +541,7 @@ const Products = () => {
                       </span>
                       {!product.pallet_disabled && (
                         <button
-                          onClick={() => setEditingProduct(`${product.id}-pallet`)}
+                          onClick={() => startEditing(product, 'pallet')}
                           className="text-gray-400 hover:text-blue-600"
                           title="Upravit hodnotu"
                         >
@@ -694,29 +560,24 @@ const Products = () => {
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={product.multiple_boxes}
+                        checked={productDraft.multiple_boxes ?? product.multiple_boxes}
                         onChange={(e) => {
-                          updateProduct(product.id, { 
-                            multiple_boxes: e.target.checked,
-                            boxes_per_item: e.target.checked ? product.boxes_per_item : 1
-                          });
+                          setProductDraft(draft => ({ ...draft, multiple_boxes: e.target.checked,
+                            boxes_per_item: e.target.checked ? (product.boxes_per_item || 1) : 1 }));
                         }}
                         className="w-4 h-4"
                       />
-                      {product.multiple_boxes && (
+                      {(productDraft.multiple_boxes ?? product.multiple_boxes) && (
                         <input
                           type="number"
-                          value={product.boxes_per_item}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value) || 1;
-                            updateProduct(product.id, { boxes_per_item: value });
-                          }}
+                          value={productDraft.boxes_per_item ?? product.boxes_per_item}
+                          onChange={(e) => setProductDraft(draft => ({ ...draft, boxes_per_item: e.target.value }))}
                           className="border rounded w-20 px-2 py-1 text-right"
                           min="1"
                         />
                       )}
                       <button
-                        onClick={() => setEditingProduct(null)}
+                        onClick={() => saveProductDraft(product)}
                         className="text-blue-600 hover:text-blue-800"
                       >
                         <CheckIcon />
@@ -731,7 +592,7 @@ const Products = () => {
                         }
                       </span>
                       <button
-                        onClick={() => setEditingProduct(`${product.id}-multibox`)}
+                        onClick={() => startEditing(product, 'multibox')}
                         className="text-gray-400 hover:text-blue-600"
                         title="Upravit hodnotu"
                       >
@@ -787,6 +648,7 @@ const Products = () => {
           </div>
         ))}
       </div>
+      </fieldset>
     </div>
   )
 }

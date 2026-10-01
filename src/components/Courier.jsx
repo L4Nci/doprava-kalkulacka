@@ -1,8 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { EditIcon, DeleteIcon, CheckIcon } from './icons';
 
+import { createAdminMutations, positiveInteger } from '../services/adminMutations'
+import { useAdminMutation } from '../hooks/useAdminMutation'
+
+const mutations = createAdminMutations(supabase)
+
 const Courier = () => {
+  const mutation = useAdminMutation()
+  const [priceDraft, setPriceDraft] = useState('')
+  const [nameDraft, setNameDraft] = useState('')
+  const [loadError, setLoadError] = useState(null)
   const [carriers, setCarriers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [editingCarrier, setEditingCarrier] = useState(null)
@@ -17,152 +26,72 @@ const Courier = () => {
   const [deletingCarrier, setDeletingCarrier] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
-  useEffect(() => {
-    const fetchCarriers = async () => {
-      const { data, error } = await supabase
-        .from('carriers')
-        .select('*, services(*)')
-
-      if (error) {
-        console.error('Chyba při načítání:', error)
-      } else {
-        setCarriers(data)
-      }
-      setIsLoading(false)
-    }
-
-    fetchCarriers()
-  }, [])
-
-  const updateCarrier = async (carrierId, updates) => {
+  const fetchCarriers = useCallback(async () => {
+    setLoadError(null);
     try {
-      const { error } = await supabase
-        .from('carriers')
-        .update(updates)
-        .eq('id', carrierId)
+      const { data, error } = await supabase.from('carriers').select('*, services(*)');
+      if (error) throw error;
+      setCarriers(data || []);
+    } catch {
+      setLoadError('Nepodařilo se načíst dopravce. Obnovte data.');
+    } finally { setIsLoading(false); }
+  }, []);
 
-      if (error) throw error
+  useEffect(() => { fetchCarriers(); }, [fetchCarriers]);
 
-      setCarriers(carriers.map(c => 
-        c.id === carrierId ? { ...c, ...updates } : c
-      ))
-      setEditingCarrier(null)
-    } catch (err) {
-      console.error('Chyba při ukládání:', err)
-    }
-  }
-
-  const updateServicePrice = async (serviceId, newPrice) => {
-    try {
-      const { error } = await supabase
-        .from('services')
-        .update({ price_per_unit: newPrice })
-        .eq('id', serviceId)
-
-      if (error) throw error
-
-      setCarriers(carriers.map(carrier => ({
-        ...carrier,
-        services: carrier.services.map(service =>
-          service.id === serviceId
-            ? { ...service, price_per_unit: newPrice }
-            : service
-        )
-      })))
-    } catch (err) {
-      console.error('Chyba při aktualizaci ceny:', err)
-    }
-  }
+  const updateCarrier = async (carrierId) => {
+    await mutation.run(async () => {
+      if (!nameDraft.trim()) throw new Error('Vyplňte název dopravce.');
+      const saved = await mutations.update('carriers', carrierId, { name: nameDraft.trim() });
+      setCarriers(current => current.map(c => c.id === carrierId ? { ...c, ...saved } : c));
+    });
+    setEditingCarrier(null);
+  };
 
   const updateService = async (serviceId, updates) => {
-    try {
-      const { error } = await supabase
-        .from('services')
-        .update(updates)
-        .eq('id', serviceId)
+    await mutation.run(async () => {
+      const saved = await mutations.update('services', serviceId, updates);
+      setCarriers(current => current.map(c => ({ ...c,
+        services: c.services.map(s => s.id === serviceId ? saved : s)
+      })));
+    });
+    setEditingService(null);
+    setPriceDraft('');
+  };
 
-      if (error) throw error
+  const updateServicePrice = async (serviceId) => {
+    await mutation.run(async () => {
+      const price = positiveInteger(priceDraft, 'Cena', 0);
+      const saved = await mutations.update('services', serviceId, { price_per_unit: price });
+      setCarriers(current => current.map(c => ({ ...c,
+        services: c.services.map(s => s.id === serviceId ? saved : s)
+      })));
+    });
+    setEditingService(null);
+    setPriceDraft('');
+  };
 
-      setCarriers(carriers.map(carrier => ({
-        ...carrier,
-        services: carrier.services.map(service =>
-          service.id === serviceId
-            ? { ...service, ...updates }
-            : service
-        )
-      })))
-      setEditingService(null)
-    } catch (err) {
-      console.error('Chyba při aktualizaci služby:', err)
-    }
-  }
+  const addNewCarrier = () => mutation.run(async () => {
+    const saved = await mutations.createCarrier(newCarrier);
+    setCarriers(current => [...current.filter(c => c.id !== saved.id), saved]);
+    setShowNewCarrierForm(false);
+    setNewCarrier({ name: '', logo_url: '', supported_countries: [],
+      services: [{ name: '', shipment_type: 'balik', price_per_unit: 0 }] });
+  });
 
-  const addNewCarrier = async () => {
-    try {
-      const { data: carrier, error: carrierError } = await supabase
-        .from('carriers')
-        .insert([{
-          name: newCarrier.name,
-          logo_url: newCarrier.logo_url,
-          supported_countries: newCarrier.supported_countries
-        }])
-        .select()
-
-      if (carrierError) throw carrierError
-
-      const servicesWithCarrierId = newCarrier.services.map(service => ({
-        ...service,
-        carrier_id: carrier[0].id
-      }))
-
-      const { data: services, error: servicesError } = await supabase
-        .from('services')
-        .insert(servicesWithCarrierId)
-
-      if (servicesError) throw servicesError
-
-      setCarriers([...carriers, { ...carrier[0], services: services }])
-      setShowNewCarrierForm(false)
-      setNewCarrier({
-        name: '',
-        logo_url: '',
-        supported_countries: [],
-        services: [{ name: '', shipment_type: 'balik', price_per_unit: 0 }]
-      })
-    } catch (err) {
-      console.error('Chyba při vytváření dopravce:', err)
-    }
-  }
-
-  const deleteCarrier = async (carrierId) => {
+  const deleteCarrier = (carrierId) => {
     setDeletingCarrier(carrierId);
     setDeleteConfirmation('');
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = () => {
     if (deleteConfirmation.toLowerCase() !== 'smazat') return;
-
-    try {
-      // Nejprve smažeme všechny služby dopravce
-      await supabase
-        .from('services')
-        .delete()
-        .eq('carrier_id', deletingCarrier);
-
-      // Potom smažeme samotného dopravce
-      const { error } = await supabase
-        .from('carriers')
-        .delete()
-        .eq('id', deletingCarrier);
-
-      if (error) throw error;
-
-      setCarriers(carriers.filter(c => c.id !== deletingCarrier));
+    return mutation.run(async () => {
+      await mutations.remove('carriers', deletingCarrier);
+      setCarriers(current => current.filter(c => c.id !== deletingCarrier));
       setDeletingCarrier(null);
       setDeleteConfirmation('');
-    } catch (err) {
-      console.error('Chyba při mazání dopravce:', err);
-    }
+    });
   };
 
   if (isLoading) {
@@ -171,6 +100,12 @@ const Courier = () => {
 
   return (
     <div className="p-4">
+      {(mutation.error || loadError) && <div role="alert" className="sticky top-4 z-[11000] mb-4 bg-red-100 text-red-800 p-4 rounded">
+        {mutation.error || loadError}
+        <button disabled={mutation.pending} className="ml-4 underline" onClick={() => { mutation.clearError(); mutation.run(fetchCarriers); }}>Obnovit data</button>
+      </div>}
+      {mutation.pending && <p role="status">Ověřuji zápis v databázi…</p>}
+      <fieldset disabled={mutation.pending || Boolean(loadError)} className="min-w-0">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Dopravci</h2>
         <button
@@ -262,7 +197,7 @@ const Courier = () => {
                       value={service.price_per_unit}
                       onChange={(e) => {
                         const services = [...newCarrier.services]
-                        services[index].price_per_unit = parseInt(e.target.value)
+                        services[index].price_per_unit = e.target.value
                         setNewCarrier({ ...newCarrier, services })
                       }}
                       className="border p-2 w-24 rounded"
@@ -352,12 +287,13 @@ const Courier = () => {
                   <div className="flex items-center gap-2 mt-2">
                     <input
                       type="text"
-                      value={carrier.name}
-                      onChange={(e) => updateCarrier(carrier.id, { name: e.target.value })}
+                      value={nameDraft}
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') updateCarrier(carrier.id); }}
                       className="border rounded px-2 py-1 flex-1"
                     />
                     <button
-                      onClick={() => setEditingCarrier(null)}
+                      onClick={() => updateCarrier(carrier.id)}
                       className="text-blue-600 hover:text-blue-800"
                     >
                       <CheckIcon />
@@ -367,7 +303,7 @@ const Courier = () => {
                   <div className="flex items-center gap-2 mt-2">
                     <h3 className="text-lg font-semibold">{carrier.name}</h3>
                     <button
-                      onClick={() => setEditingCarrier(`name-${carrier.id}`)}
+                      onClick={() => { setNameDraft(carrier.name); setEditingCarrier(`name-${carrier.id}`); }}
                       className="text-gray-400 hover:text-blue-600"
                       title="Upravit název"
                     >
@@ -435,17 +371,15 @@ const Courier = () => {
                       <>
                         <input
                           type="number"
-                          value={service.price_per_unit}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value)
-                            if (!isNaN(value)) {
-                              updateServicePrice(service.id, value)
-                            }
-                          }}
+                          aria-label="Cena služby"
+                          value={priceDraft}
+                          onChange={(e) => setPriceDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') updateServicePrice(service.id); }}
                           className="border rounded w-20 px-2 py-1 text-right"
                         />
                         <button
-                          onClick={() => setEditingService(null)}
+                          aria-label="Uložit cenu"
+                          onClick={() => updateServicePrice(service.id)}
                           className="text-blue-600 hover:text-blue-800"
                         >
                           <CheckIcon />
@@ -455,7 +389,7 @@ const Courier = () => {
                       <div className="flex items-center gap-2">
                         <span>{service.price_per_unit}</span>
                         <button
-                          onClick={() => setEditingService(service.id)}
+                          onClick={() => { setPriceDraft(String(service.price_per_unit)); setEditingService(service.id); }}
                           className="text-gray-400 hover:text-blue-600"
                           title="Upravit cenu"
                         >
@@ -470,6 +404,7 @@ const Courier = () => {
           </div>
         ))}
       </div>
+      </fieldset>
     </div>
   )
 }

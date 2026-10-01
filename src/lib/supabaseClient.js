@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { fetchWithoutApiCache } from './apiFetch'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -18,6 +19,7 @@ const createSupabaseClient = () => {
   }
 
   supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { fetch: fetchWithoutApiCache },
     auth: {
       persistSession: true,
       storageKey: 'doprava-app-auth', // Unikátní klíč pro storage

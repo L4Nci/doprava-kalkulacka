@@ -12,22 +12,12 @@ export default defineConfig({
       injectRegister: 'auto',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/ebkyqwtemzwrgaqplyqf\.supabase\.co\/.*/i,
-            handler: 'CacheFirst', // Změna na CacheFirst pro lepší offline podporu
-            options: {
-              cacheName: 'supabase-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          }
-        ]
+        importScripts: ['/clear-api-cache.js'],
+        runtimeCaching: [{
+          urlPattern: ({ url }) => /^\/(rest|auth)\/v1(?:\/|$)/.test(url.pathname),
+          handler: 'NetworkOnly',
+          options: { fetchOptions: { cache: 'no-store' } }
+        }]
       },
       manifest: {
         name: 'Doprava 3.0',

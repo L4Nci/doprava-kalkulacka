@@ -7,7 +7,12 @@
     "dev": "concurrently \"vite\" \"npm run server\"",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server.js"
+    "server": "node server.js",
+    "test": "node --test tests/*.test.js",
+    "test:db": "node tests/db/run.mjs",
+    "test:ui": "node tests/ui/run.mjs",
+    "lint": "eslint .",
+    "lint:crud": "eslint src/components/Courier.jsx src/components/Products.jsx src/services/adminMutations.js src/hooks/useAdminMutation.js src/lib/apiFetch.js src/lib/supabaseClient.js public/clear-api-cache.js vite.config.js tests/adminMutations.test.js tests/ui/supabaseMock.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
