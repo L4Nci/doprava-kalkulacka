@@ -28,6 +28,9 @@ async function editPrice(value) {
   await page.getByTitle('Upravit cenu').click();
   await page.getByLabel('Cena služby', { exact: true }).fill(value);
 }
+async function carrierCard(name) {
+  return page.locator('section').filter({ has: page.getByRole('heading', { name: name, exact: true }) }).locator('.border.rounded-lg').filter({ has: page.getByRole('heading', { name, exact: true }) });
+}
 try {
   await page.goto(`${base}/__crud-test.html`);
   await visible(page.getByRole('heading', { name: 'Dopravci', exact: true }));
@@ -58,6 +61,21 @@ try {
   await page.reload();
   await visible(page.getByText('234', { exact: true }));
   console.log('PASS: admin create + price draft + save + reload');
+  let glsCard = await carrierCard('GLS HU');
+  await glsCard.getByRole('button', { name: 'Deaktivovat dopravce', exact: true }).click();
+  await visible(page.getByRole('button', { name: 'Aktivovat dopravce', exact: true }));
+  assert.equal((await persisted()).carriers[0].active, false);
+  await page.reload();
+  await visible(page.getByRole('heading', { name: 'Neaktivní dopravci', exact: true }));
+  glsCard = await carrierCard('GLS HU');
+  await glsCard.getByRole('button', { name: 'Aktivovat dopravce', exact: true }).click();
+  await visible(page.getByRole('button', { name: 'Deaktivovat dopravce', exact: true }));
+  assert.equal((await persisted()).carriers[0].active, true);
+  await page.reload();
+  await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
+  assert.equal((await persisted()).services.length, 1);
+  assert.equal((await persisted()).notifications.length, 1);
+  console.log('PASS: deactivate/reactivate persists and retains services and history');
   for (const mode of ['error', 'zero']) {
     await page.evaluate(mode => localStorage.setItem('crud-test-fail', mode), mode);
     await editPrice('999');
@@ -69,6 +87,11 @@ try {
   }
   console.log('PASS: rejected and zero-row writes show error and restore confirmed price');
   await page.evaluate(() => localStorage.setItem('crud-test-role', 'nonadmin'));
+  glsCard = await carrierCard('GLS HU');
+  await glsCard.getByRole('button', { name: 'Deaktivovat dopravce', exact: true }).click();
+  await visible(page.getByRole('alert'));
+  assert.equal((await persisted()).carriers[0].active, true);
+  await page.getByRole('button', { name: 'Obnovit data' }).click();
   await editPrice('999');
   await page.getByRole('button', { name: 'Uložit cenu' }).click();
   await visible(page.getByRole('alert'));
@@ -80,11 +103,32 @@ try {
   await page.locator('div.fixed').filter({ has: page.getByRole('heading', { name: 'Potvrzení smazání' }) }).getByRole('button', { name: 'Smazat dopravce', exact: true }).click();
   await visible(page.getByRole('alert'));
   await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
-  assert.match(await page.getByRole('alert').innerText(), /navázaná data/);
+  assert.match(await page.getByRole('alert').innerText(), /historii/);
+  const deleteModal = page.locator('div.fixed').filter({ has: page.getByRole('heading', { name: 'Potvrzení smazání' }) });
+  await visible(deleteModal.getByRole('button', { name: 'Deaktivovat dopravce', exact: true }));
+  await deleteModal.getByRole('button', { name: 'Deaktivovat dopravce', exact: true }).click();
+  await visible(page.getByRole('button', { name: 'Aktivovat dopravce', exact: true }));
+  assert.equal((await persisted()).carriers[0].active, false);
   await page.reload();
   await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
   assert.equal((await persisted()).carriers.length, 1);
-  console.log('PASS: linked-history delete rejected, UI and reload retain carrier');
+  assert.equal((await persisted()).notifications.length, 1);
+  console.log('PASS: linked-history delete rejected, UI offers deactivation, history retained');
+  await page.evaluate(() => {
+    const rows = JSON.parse(localStorage.getItem('crud-test-db'));
+    rows.carriers.push({ id: 'clean-carrier', name: 'Bez historie', logo_url: '', supported_countries: ['CZ'], active: true });
+    rows.services.push({ id: 'clean-service', carrier_id: 'clean-carrier', name: 'Čistá služba', shipment_type: 'balik', price_per_unit: 90 });
+    localStorage.setItem('crud-test-db', JSON.stringify(rows));
+  });
+  await page.reload();
+  const cleanCard = await carrierCard('Bez historie');
+  await cleanCard.getByTitle('Smazat dopravce').click();
+  await page.getByPlaceholder('smazat').fill('smazat');
+  await page.locator('div.fixed').filter({ has: page.getByRole('heading', { name: 'Potvrzení smazání' }) }).getByRole('button', { name: 'Smazat dopravce', exact: true }).click();
+  await page.getByRole('heading', { name: 'Bez historie', exact: true }).waitFor({ state: 'detached' });
+  assert.equal((await persisted()).carriers.some(carrier => carrier.id === 'clean-carrier'), false);
+  assert.equal((await persisted()).services.some(service => service.carrier_id === 'clean-carrier'), false);
+  console.log('PASS: carrier without history is permanently deleted');
   await page.goto(`${base}/__crud-test.html?component=Products`);
   await visible(page.getByRole('heading', { name: 'Test produkt', exact: true }));
   await page.getByText('Balíky povoleny', { exact: true }).click();

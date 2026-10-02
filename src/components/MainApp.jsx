@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { carriers as staticCarriers } from '../config/carriers'
 import { useProducts } from '../hooks/useProducts.jsx'
 import { useCurrency } from '../hooks/useCurrency'
 import { PriceNotification } from './PriceNotification'
+import { activeCarriers } from '../utils/carrierUtils'
 
 function MainApp() {
   const [carriers, setCarriers] = useState([])
@@ -18,7 +18,7 @@ function MainApp() {
   const [productType, setProductType] = useState('')
   const [quantity, setQuantity] = useState('')
 
-  const { products, isLoading: productsLoading, error, refetch: refetchProducts } = useProducts()
+  const { products, refetch: refetchProducts } = useProducts()
   const { convertPrice, isLoading: currencyLoading } = useCurrency()
 
   useEffect(() => {
@@ -29,23 +29,6 @@ function MainApp() {
       });
     }
   }, [products]);
-
-  const predefinedProducts = products.reduce((acc, product) => {
-    if (!product || !product.code) {
-      console.warn('⚠️ Nalezen neplatný produkt:', product);
-      return acc;
-    }
-
-    acc[product.code] = {
-      boxesPerUnit: product.parcel_disabled ? null : (product.items_per_box ? 1 / product.items_per_box : null),
-      itemsPerPallet: product.pallet_disabled ? null : product.items_per_pallet,
-      name: product.name,
-      image: product.image_url,
-      parcelDisabled: Boolean(product.parcel_disabled),
-      palletDisabled: Boolean(product.pallet_disabled)
-    }
-    return acc
-  }, {})
 
   const countryNames = useMemo(() => ({
     CZ: "Česko",
@@ -70,7 +53,8 @@ function MainApp() {
             services (
               *
             )
-          `) // Odstraněno .single()
+          `)
+          .eq('active', true)
           .order('name');
 
         if (error) throw error;
@@ -82,11 +66,12 @@ function MainApp() {
           časNačtení: new Date().toLocaleTimeString()
         });
 
-        setCarriers(data?.length ? data : Object.values(staticCarriers));
+        const availableCarriers = activeCarriers(data || []);
+        setCarriers(availableCarriers);
         
         // Zpracování dostupných zemí
         const countries = new Set();
-        data?.forEach(carrier => {
+        availableCarriers.forEach(carrier => {
           carrier.supported_countries?.forEach(country => {
             countries.add(country);
           });
@@ -100,7 +85,8 @@ function MainApp() {
       } catch (error) {
         console.error('❌ Chyba:', error.message);
         if (isMounted) {
-          setCarriers(Object.values(staticCarriers));
+          setCarriers([]);
+          setAvailableCountries([]);
         }
       }
     };
@@ -239,7 +225,9 @@ function MainApp() {
       let parcelOption = null;
       let palletOption = null;
 
-      const carriersToUse = carriers.length > 0 ? carriers : Object.values(staticCarriers);
+      // Enforce lifecycle status again at the calculation boundary. This prevents
+      // stale component state from using a carrier that has been deactivated.
+      const carriersToUse = activeCarriers(carriers);
 
       console.group('🚚 Výpočet dopravy');
       console.log('Celkové využití:', {

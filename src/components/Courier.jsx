@@ -25,6 +25,7 @@ const Courier = () => {
   })
   const [deletingCarrier, setDeletingCarrier] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleteBlockedCarrier, setDeleteBlockedCarrier] = useState(null);
 
   const fetchCarriers = useCallback(async () => {
     setLoadError(null);
@@ -80,15 +81,30 @@ const Courier = () => {
   const deleteCarrier = (carrierId) => {
     setDeletingCarrier(carrierId);
     setDeleteConfirmation('');
+    setDeleteBlockedCarrier(null);
   };
+
+  const setCarrierActive = (carrierId, active) => mutation.run(async () => {
+    await mutations.update('carriers', carrierId, { active });
+    await fetchCarriers();
+    setDeletingCarrier(null);
+    setDeleteConfirmation('');
+    setDeleteBlockedCarrier(null);
+  });
 
   const confirmDelete = () => {
     if (deleteConfirmation.toLowerCase() !== 'smazat') return;
     return mutation.run(async () => {
-      await mutations.remove('carriers', deletingCarrier);
+      try {
+        await mutations.remove('carriers', deletingCarrier);
+      } catch (failure) {
+        if (failure?.code === '23503') setDeleteBlockedCarrier(deletingCarrier);
+        throw failure;
+      }
       await fetchCarriers();
       setDeletingCarrier(null);
       setDeleteConfirmation('');
+      setDeleteBlockedCarrier(null);
     });
   };
 
@@ -237,6 +253,14 @@ const Courier = () => {
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 className="text-xl font-bold mb-4">Potvrzení smazání</h3>
             <p className="mb-4">Pro smazání dopravce napište "smazat"</p>
+            {deleteBlockedCarrier === deletingCarrier && (
+              <button
+                onClick={() => setCarrierActive(deletingCarrier, false)}
+                className="mb-4 bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700"
+              >
+                Deaktivovat dopravce
+              </button>
+            )}
             <input
               type="text"
               value={deleteConfirmation}
@@ -249,6 +273,7 @@ const Courier = () => {
                 onClick={() => {
                   setDeletingCarrier(null);
                   setDeleteConfirmation('');
+                  setDeleteBlockedCarrier(null);
                 }}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800"
               >
@@ -269,8 +294,13 @@ const Courier = () => {
 
       {carriers.length === 0 && <p>Žádní dopravci nebyli nalezeni.</p>}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {carriers.map((carrier) => (
+      {[{ title: 'Aktivní dopravci', rows: carriers.filter(carrier => carrier.active) },
+        { title: 'Neaktivní dopravci', rows: carriers.filter(carrier => !carrier.active) }].map(group => (
+        <section key={group.title} className="mb-8">
+          <h3 className="text-xl font-semibold mb-3">{group.title}</h3>
+          {group.rows.length === 0 && <p className="text-gray-500 mb-3">Žádní dopravci.</p>}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {group.rows.map((carrier) => (
           <div key={carrier.id} className="border rounded-lg p-4 shadow-md bg-white">
             <div className="flex justify-between items-start mb-4">
               <div className="w-full">
@@ -312,6 +342,12 @@ const Courier = () => {
                 <p className="text-sm text-gray-600 mt-1">
                   Podporované země: {carrier.supported_countries?.join(', ')}
                 </p>
+                <button
+                  onClick={() => setCarrierActive(carrier.id, !carrier.active)}
+                  className="mt-2 text-sm text-blue-700 underline"
+                >
+                  {carrier.active ? 'Deaktivovat dopravce' : 'Aktivovat dopravce'}
+                </button>
               </div>
               <button
                 onClick={() => deleteCarrier(carrier.id)}
@@ -401,7 +437,9 @@ const Courier = () => {
             </div>
           </div>
         ))}
-      </div>
+          </div>
+        </section>
+      ))}
       </fieldset>
     </div>
   )

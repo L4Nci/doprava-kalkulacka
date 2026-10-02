@@ -38,7 +38,7 @@ export function productPatch(current, updates) {
 
 export function mutationError(error) {
   if (error?.code === 'PGRST116') return 'Databáze nepotvrdila změnu jednoho záznamu. Obnovte data a zkontrolujte oprávnění.';
-  if (error?.code === '23503') return 'Záznam má navázaná data a nelze jej smazat. Data nebyla odstraněna.';
+  if (error?.code === '23503') return 'Dopravce má historii a nelze jej trvale smazat. Můžete jej deaktivovat.';
   if (error?.code === '42501') return 'Nemáte oprávnění k zápisu. Změna nebyla uložena.';
   return `${error?.message || 'Síťová chyba.'} Stav není potvrzený; před opakováním obnovte data.`;
 }

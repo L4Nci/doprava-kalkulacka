@@ -9,6 +9,7 @@ SELECT id AS carrier_id FROM public.create_carrier_with_services(
 SELECT id AS service_id FROM public.services WHERE carrier_id = :'carrier_id' \gset
 SELECT pg_temp.check_true((SELECT count(*) = 1 FROM public.carriers WHERE id = :'carrier_id' AND name = 'GLS HU'), 'carrier persisted');
 SELECT pg_temp.check_true((SELECT count(*) = 1 FROM public.services WHERE carrier_id = :'carrier_id'), 'service persisted');
+SELECT pg_temp.check_true((SELECT active FROM public.carriers WHERE id = :'carrier_id'), 'new carrier defaults active');
 SELECT pg_temp.check_true((SELECT count(*) = 1 FROM public.admin_profiles), 'admin sees only own profile');
 SELECT pg_temp.check_true((SELECT bool_and(id = auth.uid()) FROM public.admin_profiles), 'admin cannot see another profile');
 DO $$ BEGIN
@@ -22,6 +23,12 @@ SELECT pg_temp.check_true((SELECT price_per_unit = 234 FROM public.services WHER
 SELECT pg_temp.check_true((SELECT count(*) = 1 FROM public.price_change_notifications WHERE service_id = :'service_id' AND new_price = 234), 'invoker trigger inserted notification');
 UPDATE public.services SET price_per_unit = 235 WHERE id = :'service_id';
 SELECT pg_temp.check_true((SELECT count(*) = 1 FROM public.price_change_notifications WHERE service_id = :'service_id'), 'five-second throttle preserved');
+UPDATE public.carriers SET active = false WHERE id = :'carrier_id';
+SELECT pg_temp.check_true((SELECT active IS FALSE FROM public.carriers WHERE id = :'carrier_id'), 'admin deactivated carrier');
+SELECT pg_temp.check_true((SELECT count(*) = 1 FROM public.services WHERE carrier_id = :'carrier_id'), 'deactivation retained services');
+SELECT pg_temp.check_true((SELECT count(*) = 1 FROM public.price_change_notifications WHERE service_id = :'service_id'), 'deactivation retained price history');
+UPDATE public.carriers SET active = true WHERE id = :'carrier_id';
+SELECT pg_temp.check_true((SELECT active FROM public.carriers WHERE id = :'carrier_id'), 'admin reactivated carrier');
 DO $$ BEGIN
   BEGIN
     INSERT INTO public.price_change_notifications(new_price) VALUES(999);
@@ -84,6 +91,9 @@ DO $$ DECLARE t text; affected integer; BEGIN
     RAISE EXCEPTION 'FAIL: nonadmin changed is_super_admin';
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
+UPDATE public.carriers SET active = false WHERE id = :'carrier_id';
+SELECT pg_temp.check_true((SELECT active FROM public.carriers WHERE id = :'carrier_id'), 'nonadmin cannot deactivate carrier');
+SELECT set_config('test.carrier_id', :'carrier_id', false);
 SET ROLE anon;
 DO $$ DECLARE t text; BEGIN
   FOREACH t IN ARRAY ARRAY['products','carriers','services'] LOOP
@@ -101,6 +111,13 @@ DO $$ DECLARE t text; BEGIN
   END LOOP;
   PERFORM pg_temp.check_true(NOT has_table_privilege('public.admin_profiles', 'SELECT'), 'anon profile read denied');
   PERFORM pg_temp.check_true(NOT has_table_privilege('public.admin_profiles', 'UPDATE'), 'anon profile update denied');
+END $$;
+DO $$ BEGIN
+  BEGIN
+    UPDATE public.carriers SET active = false
+      WHERE id = current_setting('test.carrier_id')::uuid;
+    RAISE EXCEPTION 'FAIL: anon changed active state';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', false);

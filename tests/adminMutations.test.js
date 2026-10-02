@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAdminMutations, productPatch, positiveInteger } from '../src/services/adminMutations.js';
 import { requireNetworkOnlyWorker } from '../src/lib/apiFetch.js';
+import { activeCarriers } from '../src/utils/carrierUtils.js';
 
 // Offline transport double: deliberately models denied/zero-row writes and stale reads.
 function clientWith(...results) {
@@ -69,4 +70,8 @@ test('old service worker cannot serve API reads until upgraded', async () => {
   await assert.rejects(requireNetworkOnlyWorker({ postMessage() {} }, () => new MessageChannel(), 20), /Aktualizace/);
   await requireNetworkOnlyWorker({ postMessage(_message, [port]) { port.postMessage('API_NETWORK_ONLY_V1'); } });
   await requireNetworkOnlyWorker(null);
+});
+test('public carrier selection and calculation boundary exclude inactive carriers', () => {
+  const carriers = [{ id: 'active', active: true }, { id: 'inactive', active: false }];
+  assert.deepEqual(activeCarriers(carriers).map(carrier => carrier.id), ['active']);
 });

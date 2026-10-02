@@ -20,7 +20,7 @@ try {
   run('initdb', ['-D', data, '-A', 'trust', '-U', 'postgres', '--no-locale', '--encoding=UTF8']);
   run('pg_ctl', ['-D', data, '-l', join(dir, 'server.log'), '-o', `-c listen_addresses='' -c unix_socket_directories='${socket}' -p 55439`, '-w', 'start']);
   started = true;
-  for (const file of ['tests/db/baseline.sql', 'supabase/manual/admin-crud.sql', 'tests/db/acceptance.sql']) {
+  for (const file of ['tests/db/baseline.sql', 'supabase/manual/admin-crud.sql', 'supabase/manual/carrier-lifecycle.sql', 'tests/db/acceptance.sql']) {
     const output = run('psql', ['-X', '-h', socket, '-p', '55439', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve(file)]);
     console.log(`${file}: PASS`);
     if (file.endsWith('acceptance.sql')) console.log(output.slice(-220));

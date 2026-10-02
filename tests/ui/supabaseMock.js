@@ -61,7 +61,7 @@ export const supabase = {
     window.crudCalls.push({ action: 'rpc' });
     await new Promise(r => setTimeout(r, 150));
     if (role() !== 'admin') return { data: null, error: { code: '42501', message: 'RLS denied' } };
-    const rows = db(), carrier = { ...carrier_data, id: crypto.randomUUID() };
+    const rows = db(), carrier = { active: true, ...carrier_data, id: crypto.randomUUID() };
     rows.carriers.push(carrier);
     rows.services.push(...service_data.map(s => ({ ...s, id: crypto.randomUUID(), carrier_id: carrier.id })));
     store(rows);
