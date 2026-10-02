@@ -16,6 +16,7 @@ function CarrierLogo({ carrier }) {
 const Courier = () => {
   const mutation = useAdminMutation()
   const [priceDraft, setPriceDraft] = useState('')
+  const [serviceNameDraft, setServiceNameDraft] = useState('')
   const [nameDraft, setNameDraft] = useState('')
   const [logoDraft, setLogoDraft] = useState('')
   const [loadError, setLoadError] = useState(null)
@@ -68,6 +69,22 @@ const Courier = () => {
     });
     setEditingService(null);
     setPriceDraft('');
+  };
+
+  const updateServiceName = async (serviceId) => {
+    const name = serviceNameDraft.trim();
+    if (!name) {
+      mutation.setError?.('Vyplňte název služby.');
+      return;
+    }
+    const saved = await mutation.run(async () => {
+      await mutations.update('services', serviceId, { name });
+      await fetchCarriers();
+    });
+    if (saved) {
+      setEditingService(null);
+      setServiceNameDraft('');
+    }
   };
 
   const updateServicePrice = async (serviceId) => {
@@ -387,7 +404,41 @@ const Courier = () => {
               </div>
               {carrier.services?.map((service) => (
                 <div key={service.id} className="grid grid-cols-3 p-2 border-b last:border-b-0 hover:bg-gray-50">
-                  <div className="text-center">{service.name}</div>
+                  <div className="text-center">
+                    {editingService === `name-${service.id}` ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <input
+                          type="text"
+                          aria-label="Název služby"
+                          value={serviceNameDraft}
+                          onChange={(e) => setServiceNameDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') updateServiceName(service.id); }}
+                          className="border rounded px-2 py-1 min-w-0 w-full"
+                        />
+                        <button
+                          aria-label="Uložit název služby"
+                          onClick={() => updateServiceName(service.id)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <CheckIcon />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <span>{service.name}</span>
+                        <button
+                          onClick={() => {
+                            setServiceNameDraft(service.name)
+                            setEditingService(`name-${service.id}`)
+                          }}
+                          className="text-gray-400 hover:text-blue-600"
+                          title="Upravit název služby"
+                        >
+                          <EditIcon />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <div className="text-center">
                     {editingService === `type-${service.id}` ? (
                       <div className="flex items-center justify-center gap-2">
