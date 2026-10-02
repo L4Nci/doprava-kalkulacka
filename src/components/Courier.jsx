@@ -32,28 +32,28 @@ const Courier = () => {
       const { data, error } = await supabase.from('carriers').select('*, services(*)');
       if (error) throw error;
       setCarriers(data || []);
-    } catch {
+      return data || [];
+    } catch (failure) {
       setLoadError('Nepodařilo se načíst dopravce. Obnovte data.');
+      throw failure;
     } finally { setIsLoading(false); }
   }, []);
 
-  useEffect(() => { fetchCarriers(); }, [fetchCarriers]);
+  useEffect(() => { fetchCarriers().catch(() => {}); }, [fetchCarriers]);
 
   const updateCarrier = async (carrierId) => {
     await mutation.run(async () => {
       if (!nameDraft.trim()) throw new Error('Vyplňte název dopravce.');
-      const saved = await mutations.update('carriers', carrierId, { name: nameDraft.trim() });
-      setCarriers(current => current.map(c => c.id === carrierId ? { ...c, ...saved } : c));
+      await mutations.update('carriers', carrierId, { name: nameDraft.trim() });
+      await fetchCarriers();
     });
     setEditingCarrier(null);
   };
 
   const updateService = async (serviceId, updates) => {
     await mutation.run(async () => {
-      const saved = await mutations.update('services', serviceId, updates);
-      setCarriers(current => current.map(c => ({ ...c,
-        services: c.services.map(s => s.id === serviceId ? saved : s)
-      })));
+      await mutations.update('services', serviceId, updates);
+      await fetchCarriers();
     });
     setEditingService(null);
     setPriceDraft('');
@@ -62,18 +62,16 @@ const Courier = () => {
   const updateServicePrice = async (serviceId) => {
     await mutation.run(async () => {
       const price = positiveInteger(priceDraft, 'Cena', 0);
-      const saved = await mutations.update('services', serviceId, { price_per_unit: price });
-      setCarriers(current => current.map(c => ({ ...c,
-        services: c.services.map(s => s.id === serviceId ? saved : s)
-      })));
+      await mutations.update('services', serviceId, { price_per_unit: price });
+      await fetchCarriers();
     });
     setEditingService(null);
     setPriceDraft('');
   };
 
   const addNewCarrier = () => mutation.run(async () => {
-    const saved = await mutations.createCarrier(newCarrier);
-    setCarriers(current => [...current.filter(c => c.id !== saved.id), saved]);
+    await mutations.createCarrier(newCarrier);
+    await fetchCarriers();
     setShowNewCarrierForm(false);
     setNewCarrier({ name: '', logo_url: '', supported_countries: [],
       services: [{ name: '', shipment_type: 'balik', price_per_unit: 0 }] });
@@ -88,7 +86,7 @@ const Courier = () => {
     if (deleteConfirmation.toLowerCase() !== 'smazat') return;
     return mutation.run(async () => {
       await mutations.remove('carriers', deletingCarrier);
-      setCarriers(current => current.filter(c => c.id !== deletingCarrier));
+      await fetchCarriers();
       setDeletingCarrier(null);
       setDeleteConfirmation('');
     });

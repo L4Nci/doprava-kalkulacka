@@ -40,10 +40,17 @@ try {
   await modal.getByPlaceholder('Cena', { exact: true }).fill('100');
   await modal.getByRole('button', { name: 'Vytvořit dopravce' }).evaluate(button => { button.click(); button.click(); });
   await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
+  await visible(page.getByText('GLS HU parcel', { exact: true }));
   assert.equal((await persisted()).carriers.length, 1);
   assert.equal(await page.evaluate(() => window.crudCalls.filter(c => c.action === 'rpc').length), 1, 'double submission blocked');
+  assert.ok(await page.evaluate(() => window.crudCalls.filter(c => c.table === 'carriers' && c.action === 'select').length >= 3), 'create must finish with a fresh full carrier read');
   await page.reload();
   await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
+  await visible(page.getByText('GLS HU parcel', { exact: true }));
+  await page.goto('about:blank');
+  await page.goto(`${base}/__crud-test.html`);
+  await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
+  await visible(page.getByText('GLS HU parcel', { exact: true }));
   await editPrice('234');
   assert.equal((await persisted()).services[0].price_per_unit, 100, 'typing must not save');
   await page.getByRole('button', { name: 'Uložit cenu' }).click();
