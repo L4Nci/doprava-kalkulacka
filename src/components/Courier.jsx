@@ -7,10 +7,17 @@ import { useAdminMutation } from '../hooks/useAdminMutation'
 
 const mutations = createAdminMutations(supabase)
 
+function CarrierLogo({ carrier }) {
+  const [failed, setFailed] = useState(false)
+  if (!carrier.logo_url || failed) return null
+  return <img src={carrier.logo_url} alt={carrier.name} onError={() => setFailed(true)} className="h-12 object-contain" />
+}
+
 const Courier = () => {
   const mutation = useAdminMutation()
   const [priceDraft, setPriceDraft] = useState('')
   const [nameDraft, setNameDraft] = useState('')
+  const [logoDraft, setLogoDraft] = useState('')
   const [loadError, setLoadError] = useState(null)
   const [carriers, setCarriers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -43,12 +50,15 @@ const Courier = () => {
   useEffect(() => { fetchCarriers().catch(() => {}); }, [fetchCarriers]);
 
   const updateCarrier = async (carrierId) => {
-    await mutation.run(async () => {
+    const saved = await mutation.run(async () => {
       if (!nameDraft.trim()) throw new Error('Vyplňte název dopravce.');
-      await mutations.update('carriers', carrierId, { name: nameDraft.trim() });
+      await mutations.update('carriers', carrierId, {
+        name: nameDraft.trim(),
+        logo_url: logoDraft.trim() || null
+      });
       await fetchCarriers();
     });
-    setEditingCarrier(null);
+    if (saved) setEditingCarrier(null);
   };
 
   const updateService = async (serviceId, updates) => {
@@ -304,36 +314,47 @@ const Courier = () => {
           <div key={carrier.id} className="border rounded-lg p-4 shadow-md bg-white">
             <div className="flex justify-between items-start mb-4">
               <div className="w-full">
-                {carrier.logo_url && (
-                  <img 
-                    src={carrier.logo_url} 
-                    alt={carrier.name} 
-                    className="h-12 object-contain" 
-                  />
-                )}
-                {editingCarrier === `name-${carrier.id}` ? (
-                  <div className="flex items-center gap-2 mt-2">
+                <CarrierLogo key={carrier.logo_url || 'no-logo'} carrier={carrier} />
+                {editingCarrier === `carrier-${carrier.id}` ? (
+                  <div className="space-y-2 mt-2">
                     <input
                       type="text"
+                      aria-label="Název dopravce"
                       value={nameDraft}
                       onChange={(e) => setNameDraft(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') updateCarrier(carrier.id); }}
-                      className="border rounded px-2 py-1 flex-1"
+                      className="border rounded px-2 py-1 w-full"
                     />
-                    <button
-                      onClick={() => updateCarrier(carrier.id)}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      <CheckIcon />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="url"
+                        aria-label="URL loga"
+                        placeholder="URL loga (volitelné)"
+                        value={logoDraft}
+                        onChange={(e) => setLogoDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') updateCarrier(carrier.id); }}
+                        className="border rounded px-2 py-1 flex-1"
+                      />
+                      <button
+                        aria-label="Uložit dopravce"
+                        onClick={() => updateCarrier(carrier.id)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        <CheckIcon />
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 mt-2">
                     <h3 className="text-lg font-semibold">{carrier.name}</h3>
                     <button
-                      onClick={() => { setNameDraft(carrier.name); setEditingCarrier(`name-${carrier.id}`); }}
+                      onClick={() => {
+                        setNameDraft(carrier.name)
+                        setLogoDraft(carrier.logo_url || '')
+                        setEditingCarrier(`carrier-${carrier.id}`)
+                      }}
                       className="text-gray-400 hover:text-blue-600"
-                      title="Upravit název"
+                      title="Upravit dopravce"
                     >
                       <EditIcon />
                     </button>

@@ -21,6 +21,11 @@ END $$;
 UPDATE public.services SET price_per_unit = 234 WHERE id = :'service_id' RETURNING id, price_per_unit;
 SELECT pg_temp.check_true((SELECT price_per_unit = 234 FROM public.services WHERE id = :'service_id'), 'price persisted');
 SELECT pg_temp.check_true((SELECT count(*) = 1 FROM public.price_change_notifications WHERE service_id = :'service_id' AND new_price = 234), 'invoker trigger inserted notification');
+SELECT pg_temp.check_true((SELECT read IS FALSE FROM public.price_change_notifications WHERE service_id = :'service_id'), 'new price notification defaults unread');
+SELECT count(*) FROM public.mark_price_change_notifications_read(
+  ARRAY[(SELECT id FROM public.price_change_notifications WHERE service_id = :'service_id')]);
+SELECT pg_temp.check_true((SELECT read IS TRUE FROM public.price_change_notifications WHERE service_id = :'service_id'), 'admin RPC persisted read state');
+SELECT pg_temp.check_true(NOT has_table_privilege('authenticated', 'public.price_change_notifications', 'UPDATE'), 'browser has no direct notification update');
 UPDATE public.services SET price_per_unit = 235 WHERE id = :'service_id';
 SELECT pg_temp.check_true((SELECT count(*) = 1 FROM public.price_change_notifications WHERE service_id = :'service_id'), 'five-second throttle preserved');
 UPDATE public.carriers SET active = false WHERE id = :'carrier_id';
@@ -90,6 +95,12 @@ DO $$ DECLARE t text; affected integer; BEGIN
     UPDATE public.admin_profiles SET is_super_admin = true WHERE id = auth.uid();
     RAISE EXCEPTION 'FAIL: nonadmin changed is_super_admin';
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  BEGIN
+    PERFORM public.mark_price_change_notifications_read(ARRAY[
+      (SELECT id FROM public.price_change_notifications LIMIT 1)
+    ]);
+    RAISE EXCEPTION 'FAIL: nonadmin marked notification read';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
 UPDATE public.carriers SET active = false WHERE id = :'carrier_id';
 SELECT pg_temp.check_true((SELECT active FROM public.carriers WHERE id = :'carrier_id'), 'nonadmin cannot deactivate carrier');
@@ -111,6 +122,7 @@ DO $$ DECLARE t text; BEGIN
   END LOOP;
   PERFORM pg_temp.check_true(NOT has_table_privilege('public.admin_profiles', 'SELECT'), 'anon profile read denied');
   PERFORM pg_temp.check_true(NOT has_table_privilege('public.admin_profiles', 'UPDATE'), 'anon profile update denied');
+  PERFORM pg_temp.check_true(NOT has_function_privilege('public.mark_price_change_notifications_read(uuid[])', 'EXECUTE'), 'anon notification RPC denied');
 END $$;
 DO $$ BEGIN
   BEGIN

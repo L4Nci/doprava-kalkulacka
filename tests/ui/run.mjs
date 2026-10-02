@@ -12,7 +12,7 @@ const base = 'http://127.0.0.1:5173';
 const html = component => `<!doctype html><html><head><title>Offline CRUD acceptance</title>
 <script type="module">import RefreshRuntime from '/@react-refresh';RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>type=>type;window.__vite_plugin_react_preamble_installed__=true;</script>
 <script type="module" src="/@vite/client"></script></head><body><div id="root"></div>
-<script type="module">import React from '/node_modules/.vite/deps/react.js';import ReactDOM from '/node_modules/.vite/deps/react-dom_client.js';import Component from '/src/components/${component}.jsx';import '/src/index.css';ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));</script></body></html>`;
+<script type="module">import React from '/node_modules/.vite/deps/react.js';import ReactDOM from '/node_modules/.vite/deps/react-dom_client.js';import * as Module from '/src/components/${component}.jsx';import '/src/index.css';const Component=Module.default||Module.PriceNotification;ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));</script></body></html>`;
 await page.route('**/*', route => {
   const url = new URL(route.request().url());
   if (url.origin === 'http://localhost:3001' && url.pathname === '/audit-log') return route.fulfill({ json: { success: true }, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' } });
@@ -54,6 +54,35 @@ try {
   await page.goto(`${base}/__crud-test.html`);
   await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
   await visible(page.getByText('GLS HU parcel', { exact: true }));
+  let glsCard = await carrierCard('GLS HU');
+  await glsCard.getByTitle('Upravit dopravce').click();
+  await page.getByLabel('URL loga').fill('/icons/icon-192.png');
+  await page.getByRole('button', { name: 'Uložit dopravce' }).click();
+  glsCard = await carrierCard('GLS HU');
+  await visible(glsCard.getByRole('img', { name: 'GLS HU' }));
+  assert.equal((await persisted()).carriers[0].logo_url, '/icons/icon-192.png');
+  await page.reload();
+  glsCard = await carrierCard('GLS HU');
+  assert.equal(await glsCard.getByRole('img', { name: 'GLS HU' }).getAttribute('src'), '/icons/icon-192.png');
+  await glsCard.getByTitle('Upravit dopravce').click();
+  await page.getByLabel('URL loga').fill('/icons/icon-512.png');
+  await page.getByRole('button', { name: 'Uložit dopravce' }).click();
+  glsCard = await carrierCard('GLS HU');
+  assert.equal(await glsCard.getByRole('img', { name: 'GLS HU' }).getAttribute('src'), '/icons/icon-512.png');
+  await glsCard.getByTitle('Upravit dopravce').click();
+  await page.getByLabel('URL loga').fill('data:text/plain,not-an-image');
+  await page.getByRole('button', { name: 'Uložit dopravce' }).click();
+  glsCard = await carrierCard('GLS HU');
+  await glsCard.getByRole('img', { name: 'GLS HU' }).waitFor({ state: 'detached' });
+  await glsCard.getByTitle('Upravit dopravce').click();
+  await page.getByLabel('URL loga').fill('');
+  await page.getByRole('button', { name: 'Uložit dopravce' }).click();
+  await page.getByLabel('URL loga').waitFor({ state: 'detached' });
+  assert.equal((await persisted()).carriers[0].logo_url, null);
+  await page.reload();
+  glsCard = await carrierCard('GLS HU');
+  assert.equal(await glsCard.getByRole('img', { name: 'GLS HU' }).count(), 0);
+  console.log('PASS: optional carrier logo add/change/remove persists and broken image falls back');
   await editPrice('234');
   assert.equal((await persisted()).services[0].price_per_unit, 100, 'typing must not save');
   await page.getByRole('button', { name: 'Uložit cenu' }).click();
@@ -61,7 +90,7 @@ try {
   await page.reload();
   await visible(page.getByText('234', { exact: true }));
   console.log('PASS: admin create + price draft + save + reload');
-  let glsCard = await carrierCard('GLS HU');
+  glsCard = await carrierCard('GLS HU');
   await glsCard.getByRole('button', { name: 'Deaktivovat dopravce', exact: true }).click();
   await visible(page.getByRole('button', { name: 'Aktivovat dopravce', exact: true }));
   assert.equal((await persisted()).carriers[0].active, false);
@@ -147,6 +176,46 @@ try {
   await visible(page.getByText('Palety povoleny', { exact: true }));
   assert.equal((await persisted()).products[0].items_per_pallet, 22);
   console.log('PASS: product capacity roundtrip + failed toggle remains confirmed');
+  await page.evaluate(() => {
+    const rows = JSON.parse(localStorage.getItem('crud-test-db'));
+    const carrier = rows.carriers[0];
+    const service = rows.services[0];
+    rows.notifications = Array.from({ length: 4 }, (_, index) => ({
+      id: `notification-${index + 1}`,
+      carrier_id: carrier.id,
+      service_id: service.id,
+      old_price: 100 + index,
+      new_price: 200 + index,
+      created_at: new Date(Date.now() - index * 1000).toISOString(),
+      read: false
+    }));
+    localStorage.setItem('crud-test-db', JSON.stringify(rows));
+  });
+  await page.goto(`${base}/__crud-test.html?component=PriceNotification`);
+  await visible(page.getByLabel('4 nepřečtených změn'));
+  await page.getByRole('button', { name: 'Historie změn cen', exact: true }).click();
+  await visible(page.getByRole('heading', { name: 'Historie změn cen', exact: true }));
+  await page.getByLabel('4 nepřečtených změn').waitFor({ state: 'detached' });
+  assert.ok((await persisted()).notifications.every(notification => notification.read));
+  await page.reload();
+  assert.equal(await page.locator('[aria-label$="nepřečtených změn"]').count(), 0);
+  await page.evaluate(() => {
+    const rows = JSON.parse(localStorage.getItem('crud-test-db'));
+    rows.notifications.push({ id: 'notification-new', carrier_id: rows.carriers[0].id,
+      service_id: rows.services[0].id, old_price: 234, new_price: 345,
+      created_at: new Date().toISOString(), read: false });
+    localStorage.setItem('crud-test-db', JSON.stringify(rows));
+  });
+  await page.reload();
+  await visible(page.getByLabel('1 nepřečtených změn'));
+  await page.getByRole('button', { name: 'Historie změn cen', exact: true }).click();
+  await visible(page.getByText('345 Kč', { exact: true }));
+  await visible(page.getByText('200 Kč', { exact: true }));
+  await page.getByLabel('1 nepřečtených změn').waitFor({ state: 'detached' });
+  await page.reload();
+  assert.equal(await page.locator('[aria-label$="nepřečtených změn"]').count(), 0);
+  assert.equal((await persisted()).notifications.filter(notification => !notification.read).length, 0);
+  console.log('PASS: unread badge persists via RPC while full read history remains visible');
   await count(page.locator('vite-error-overlay'), 0);
   assert.deepEqual(errors, []);
   await page.screenshot({ path: '/tmp/doprava-crud-ui.png', fullPage: true });
