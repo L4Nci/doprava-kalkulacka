@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { EditIcon, DeleteIcon, CheckIcon } from './icons';
+import { EditIcon, CheckIcon } from './icons';
 
 import { createAdminMutations, positiveInteger } from '../services/adminMutations'
+import { COUNTRIES } from '../config/countries'
+import { filterCarriers } from '../utils/carrierFilters'
 import { useAdminMutation } from '../hooks/useAdminMutation'
 
 const mutations = createAdminMutations(supabase)
@@ -10,7 +12,7 @@ const mutations = createAdminMutations(supabase)
 function CarrierLogo({ carrier }) {
   const [failed, setFailed] = useState(false)
   if (!carrier.logo_url || failed) return null
-  return <img src={carrier.logo_url} alt={carrier.name} onError={() => setFailed(true)} className="h-12 object-contain" />
+  return <img src={carrier.logo_url} alt={carrier.name} onError={() => setFailed(true)} className="h-9 w-16 shrink-0 object-contain" />
 }
 
 const Courier = () => {
@@ -19,6 +21,12 @@ const Courier = () => {
   const [serviceNameDraft, setServiceNameDraft] = useState('')
   const [nameDraft, setNameDraft] = useState('')
   const [logoDraft, setLogoDraft] = useState('')
+  const [countriesDraft, setCountriesDraft] = useState([])
+  const [status, setStatus] = useState('active')
+  const [search, setSearch] = useState('')
+  const [countries, setCountries] = useState([])
+  const [type, setType] = useState('all')
+  const [sort, setSort] = useState('asc')
   const [loadError, setLoadError] = useState(null)
   const [carriers, setCarriers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -55,7 +63,8 @@ const Courier = () => {
       if (!nameDraft.trim()) throw new Error('Vyplňte název dopravce.');
       await mutations.update('carriers', carrierId, {
         name: nameDraft.trim(),
-        logo_url: logoDraft.trim() || null
+        logo_url: logoDraft.trim() || null,
+        supported_countries: countriesDraft
       });
       await fetchCarriers();
     });
@@ -135,12 +144,17 @@ const Courier = () => {
     });
   };
 
+  const filteredCarriers = filterCarriers(carriers, { status, search, countries, type, sort });
+  const activeCount = carriers.filter(carrier => carrier.active).length;
+  const hasFilters = Boolean(search || countries.length || type !== 'all' || sort !== 'asc');
+  const resetFilters = () => { setSearch(''); setCountries([]); setType('all'); setSort('asc'); };
+
   if (isLoading) {
     return <p className="text-gray-600">Načítám dopravce...</p>
   }
 
   return (
-    <div className="p-4">
+    <div className="p-2 sm:p-4 min-w-0">
       {(mutation.error || loadError) && <div role="alert" className="sticky top-4 z-[11000] mb-4 bg-red-100 text-red-800 p-4 rounded">
         {mutation.error || loadError}
         <button disabled={mutation.pending} className="ml-4 underline" onClick={() => { mutation.clearError(); mutation.run(fetchCarriers); }}>Obnovit data</button>
@@ -158,8 +172,8 @@ const Courier = () => {
       </div>
 
       {showNewCarrierForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full">
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">Nový dopravce</h3>
             
             <div className="space-y-4">
@@ -186,8 +200,8 @@ const Courier = () => {
               <div>
                 <label className="block mb-1">Podporované země</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {['CZ', 'SK', 'PL', 'HU', 'DE', 'HR', 'SI'].map(country => (
-                    <label key={country} className="flex items-center">
+                  {COUNTRIES.map(({ code: country, name }) => (
+                    <label key={country} title={name} className="flex items-center">
                       <input
                         type="checkbox"
                         checked={newCarrier.supported_countries.includes(country)}
@@ -208,7 +222,7 @@ const Courier = () => {
               <div>
                 <label className="block mb-1">Služby</label>
                 {newCarrier.services.map((service, index) => (
-                  <div key={index} className="flex gap-2 mb-2">
+                  <div key={index} className="flex flex-wrap gap-2 mb-2">
                     <input
                       type="text"
                       placeholder="Název služby"
@@ -218,7 +232,7 @@ const Courier = () => {
                         services[index].name = e.target.value
                         setNewCarrier({ ...newCarrier, services })
                       }}
-                      className="border p-2 flex-1 rounded"
+                      className="border p-2 min-w-0 flex-1 rounded"
                     />
                     <select
                       value={service.shipment_type}
@@ -319,199 +333,156 @@ const Courier = () => {
         </div>
       )}
 
-      {carriers.length === 0 && <p>Žádní dopravci nebyli nalezeni.</p>}
-
-      {[{ title: 'Aktivní dopravci', rows: carriers.filter(carrier => carrier.active) },
-        { title: 'Neaktivní dopravci', rows: carriers.filter(carrier => !carrier.active) }].map(group => (
-        <section key={group.title} className="mb-8">
-          <h3 className="text-xl font-semibold mb-3">{group.title}</h3>
-          {group.rows.length === 0 && <p className="text-gray-500 mb-3">Žádní dopravci.</p>}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {group.rows.map((carrier) => (
-          <div key={carrier.id} className="border rounded-lg p-4 shadow-md bg-white">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-full">
-                <CarrierLogo key={carrier.logo_url || 'no-logo'} carrier={carrier} />
+      <div role="group" aria-label="Stav dopravců" className="flex flex-wrap gap-2 mb-4">
+        {[['active', 'Aktivní', activeCount], ['inactive', 'Neaktivní', carriers.length - activeCount], ['all', 'Všichni', carriers.length]].map(([value, label, count]) => (
+          <button key={value} aria-pressed={status === value} onClick={() => setStatus(value)}
+            className={`rounded px-4 py-2 font-medium ${status === value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            {label} ({count})
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-gray-50 p-3 mb-3">
+        <label className="flex-1 basis-full xl:basis-64 min-w-0 text-sm font-medium">
+          Vyhledávání
+          <input type="search" value={search} onChange={event => setSearch(event.target.value)}
+            placeholder="Hledat dopravce nebo službu…" className="mt-1 block w-full border rounded p-2 font-normal" />
+        </label>
+        <details className="relative">
+          <summary className="cursor-pointer border rounded bg-white px-3 py-2">{countries.length ? `Země (${countries.length})` : 'Všechny země'}</summary>
+          <div className="absolute left-0 top-full mt-1 z-20 w-56 max-h-80 overflow-y-auto rounded border bg-white shadow-lg p-3 space-y-2" role="group" aria-label="Filtr zemí">
+            {COUNTRIES.map(({ code, name }) => (
+              <label key={code} className="flex gap-2 items-center text-sm">
+                <input type="checkbox" checked={countries.includes(code)} onChange={event => setCountries(event.target.checked ? [...countries, code] : countries.filter(country => country !== code))} />
+                {code} — {name}
+              </label>
+            ))}
+          </div>
+        </details>
+        <div role="group" aria-label="Typ služby" className="flex rounded border bg-white overflow-hidden">
+          {[['all', 'Vše'], ['balik', 'Balík'], ['paleta', 'Paleta']].map(([value, label]) => (
+            <button key={value} aria-pressed={type === value} onClick={() => setType(value)}
+              className={`px-3 py-2 ${type === value ? 'bg-blue-100 text-blue-800 font-medium' : 'hover:bg-gray-100'}`}>{label}</button>
+          ))}
+        </div>
+        <label className="text-sm font-medium">Řazení
+          <select value={sort} onChange={event => setSort(event.target.value)} className="block mt-1 border rounded bg-white p-2 font-normal">
+            <option value="asc">Název A–Z</option><option value="desc">Název Z–A</option>
+          </select>
+        </label>
+      </div>
+      <div className="flex flex-wrap gap-3 justify-between items-center mb-4 text-sm text-gray-600">
+        <p role="status">{filteredCarriers.length} dopravců · {filteredCarriers.reduce((count, carrier) => count + carrier.services.length, 0)} odpovídajících služeb</p>
+        {hasFilters && <button className="text-blue-700 underline" onClick={resetFilters}>Vymazat filtry</button>}
+      </div>
+      {filteredCarriers.length === 0 && <div className="border rounded-lg p-8 text-center text-gray-600">
+        <p>Žádný dopravce neodpovídá filtrům.</p>
+        {!hasFilters && <button className="mt-2 text-blue-700 underline" onClick={resetFilters}>Vymazat filtry</button>}
+      </div>}
+      <section aria-label="Seznam dopravců" className="space-y-4">
+        {filteredCarriers.map(carrier => (
+          <article key={carrier.id} className="border rounded-lg bg-white min-w-0" aria-label={carrier.name}>
+            <div className="flex items-start gap-3 p-4 border-b">
+              <CarrierLogo key={carrier.logo_url || 'no-logo'} carrier={carrier} />
+              <div className="flex-1 min-w-0">
                 {editingCarrier === `carrier-${carrier.id}` ? (
-                  <div className="space-y-2 mt-2">
-                    <input
-                      type="text"
-                      aria-label="Název dopravce"
-                      value={nameDraft}
-                      onChange={(e) => setNameDraft(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') updateCarrier(carrier.id); }}
-                      className="border rounded px-2 py-1 w-full"
-                    />
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="url"
-                        aria-label="URL loga"
-                        placeholder="URL loga (volitelné)"
-                        value={logoDraft}
-                        onChange={(e) => setLogoDraft(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') updateCarrier(carrier.id); }}
-                        className="border rounded px-2 py-1 flex-1"
-                      />
-                      <button
-                        aria-label="Uložit dopravce"
-                        onClick={() => updateCarrier(carrier.id)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <CheckIcon />
-                      </button>
+                  <div className="space-y-3">
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <label className="text-sm">Název dopravce
+                        <input type="text" aria-label="Název dopravce" value={nameDraft} onChange={event => setNameDraft(event.target.value)}
+                          onKeyDown={event => { if (event.key === 'Enter') updateCarrier(carrier.id); }} className="block border rounded px-2 py-1 w-full" />
+                      </label>
+                      <label className="text-sm">URL loga (volitelné)
+                        <input type="url" aria-label="URL loga" placeholder="URL loga (volitelné)" value={logoDraft} onChange={event => setLogoDraft(event.target.value)}
+                          onKeyDown={event => { if (event.key === 'Enter') updateCarrier(carrier.id); }} className="block border rounded px-2 py-1 w-full" />
+                      </label>
                     </div>
+                    <fieldset className="min-w-0"><legend className="text-sm mb-2">Podporované země</legend>
+                      <div className="flex flex-wrap gap-x-4 gap-y-2">
+                        {COUNTRIES.map(({ code, name }) => <label key={code} title={name} className="flex gap-1 items-center text-sm">
+                          <input type="checkbox" checked={countriesDraft.includes(code)}
+                            onChange={event => setCountriesDraft(event.target.checked ? [...countriesDraft, code] : countriesDraft.filter(country => country !== code))} />{code}
+                        </label>)}
+                      </div>
+                    </fieldset>
+                    <button aria-label="Uložit dopravce" onClick={() => updateCarrier(carrier.id)} className="rounded bg-blue-600 text-white px-3 py-1">Uložit dopravce</button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 mt-2">
-                    <h3 className="text-lg font-semibold">{carrier.name}</h3>
-                    <button
-                      onClick={() => {
-                        setNameDraft(carrier.name)
-                        setLogoDraft(carrier.logo_url || '')
-                        setEditingCarrier(`carrier-${carrier.id}`)
-                      }}
-                      className="text-gray-400 hover:text-blue-600"
-                      title="Upravit dopravce"
-                    >
-                      <EditIcon />
-                    </button>
-                  </div>
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-semibold break-words min-w-0">{carrier.name}</h3>
+                      <span className={`text-xs rounded px-2 py-1 ${carrier.active ? 'bg-green-50 text-green-800' : 'bg-gray-100 text-gray-700'}`}>{carrier.active ? 'Aktivní' : 'Neaktivní'}</span>
+                      <button title="Upravit dopravce" onClick={() => {
+                        setNameDraft(carrier.name); setLogoDraft(carrier.logo_url || ''); setCountriesDraft([...(carrier.supported_countries || [])]); setEditingCarrier(`carrier-${carrier.id}`);
+                      }} className="flex gap-1 items-center text-sm text-blue-700"><EditIcon /> Upravit</button>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">Podporované země: {carrier.supported_countries?.join(', ') || 'Žádné'}</p>
+                  </>
                 )}
-                <p className="text-sm text-gray-600 mt-1">
-                  Podporované země: {carrier.supported_countries?.join(', ')}
-                </p>
-                <button
-                  onClick={() => setCarrierActive(carrier.id, !carrier.active)}
-                  className="mt-2 text-sm text-blue-700 underline"
-                >
-                  {carrier.active ? 'Deaktivovat dopravce' : 'Aktivovat dopravce'}
-                </button>
               </div>
-              <button
-                onClick={() => deleteCarrier(carrier.id)}
-                className="text-red-500 hover:text-red-700 p-1"
-                title="Smazat dopravce"
-              >
-                <DeleteIcon />
-              </button>
-            </div>
-            
-            <div className="border rounded overflow-hidden">
-              <div className="grid grid-cols-3 bg-gray-50 p-2 border-b text-sm font-medium text-center">
-                <div>Název služby</div>
-                <div>Typ přepravy</div>
-                <div>Cena za jednotku (Kč)</div>
-              </div>
-              {carrier.services?.map((service) => (
-                <div key={service.id} className="grid grid-cols-3 p-2 border-b last:border-b-0 hover:bg-gray-50">
-                  <div className="text-center">
-                    {editingService === `name-${service.id}` ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <input
-                          type="text"
-                          aria-label="Název služby"
-                          value={serviceNameDraft}
-                          onChange={(e) => setServiceNameDraft(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') updateServiceName(service.id); }}
-                          className="border rounded px-2 py-1 min-w-0 w-full"
-                        />
-                        <button
-                          aria-label="Uložit název služby"
-                          onClick={() => updateServiceName(service.id)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <CheckIcon />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2">
-                        <span>{service.name}</span>
-                        <button
-                          onClick={() => {
-                            setServiceNameDraft(service.name)
-                            setEditingService(`name-${service.id}`)
-                          }}
-                          className="text-gray-400 hover:text-blue-600"
-                          title="Upravit název služby"
-                        >
-                          <EditIcon />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-center">
-                    {editingService === `type-${service.id}` ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <select
-                          value={service.shipment_type}
-                          onChange={(e) => updateService(service.id, { shipment_type: e.target.value })}
-                          className="border rounded px-2 py-1"
-                        >
-                          <option value="balik">Balík</option>
-                          <option value="paleta">Paleta</option>
-                        </select>
-                        <button
-                          onClick={() => setEditingService(null)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <CheckIcon />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2">
-                        <span className="text-gray-600">
-                          {service.shipment_type === 'balik' ? 'Balík' : 'Paleta'}
-                        </span>
-                        <button
-                          onClick={() => setEditingService(`type-${service.id}`)}
-                          className="text-gray-400 hover:text-blue-600"
-                          title="Změnit typ přepravy"
-                        >
-                          <EditIcon />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-center gap-2">
-                    {editingService === service.id ? (
-                      <>
-                        <input
-                          type="number"
-                          aria-label="Cena služby"
-                          value={priceDraft}
-                          onChange={(e) => setPriceDraft(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') updateServicePrice(service.id); }}
-                          className="border rounded w-20 px-2 py-1 text-right"
-                        />
-                        <button
-                          aria-label="Uložit cenu"
-                          onClick={() => updateServicePrice(service.id)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <CheckIcon />
-                        </button>
-                      </>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span>{service.price_per_unit}</span>
-                        <button
-                          onClick={() => { setPriceDraft(String(service.price_per_unit)); setEditingService(service.id); }}
-                          className="text-gray-400 hover:text-blue-600"
-                          title="Upravit cenu"
-                        >
-                          <EditIcon />
-                        </button>
-                      </div>
-                    )}
-                  </div>
+              <details className="relative shrink-0" onKeyDown={event => { if (event.key === 'Escape') event.currentTarget.removeAttribute('open'); }}>
+                <summary aria-label={`Další akce: ${carrier.name}`} className="list-none cursor-pointer px-3 py-1 rounded border text-xl hover:bg-gray-50">⋯</summary>
+                <div className="absolute right-0 top-full z-10 w-52 rounded border bg-white shadow-lg p-1">
+                  <button onClick={event => { event.currentTarget.closest('details').removeAttribute('open'); setCarrierActive(carrier.id, !carrier.active); }} className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50">
+                    {carrier.active ? 'Deaktivovat dopravce' : 'Aktivovat dopravce'}
+                  </button>
+                  <button title="Smazat dopravce" onClick={event => { event.currentTarget.closest('details').removeAttribute('open'); deleteCarrier(carrier.id); }} className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50">Smazat dopravce</button>
                 </div>
-              ))}
+              </details>
             </div>
-          </div>
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed text-sm">
+                <colgroup><col className="w-[34%] sm:w-auto" /><col className="w-[25%] sm:w-44" /><col className="w-[25%] sm:w-48" /><col className="w-[16%] sm:w-20" /></colgroup>
+                <thead className="bg-gray-50 text-left text-gray-600"><tr>
+                  <th scope="col" className="p-2 sm:px-4 font-medium">Název služby</th><th scope="col" className="p-2 font-medium">Typ přepravy</th>
+                  <th scope="col" className="p-2 font-medium text-right">Cena za jednotku (Kč)</th><th scope="col" className="p-2 font-medium text-center">Akce</th>
+                </tr></thead>
+                <tbody>
+                  {carrier.services.map(service => (
+                    <tr key={service.id} className="border-t hover:bg-gray-50">
+                      <td className="p-2 sm:px-4 break-words align-middle">
+                        {editingService === `name-${service.id}` ? (
+                          <div className="flex items-center gap-2">
+                            <input type="text" aria-label="Název služby" value={serviceNameDraft} onChange={event => setServiceNameDraft(event.target.value)}
+                              onKeyDown={event => { if (event.key === 'Enter') updateServiceName(service.id); }} className="border rounded px-2 py-1 min-w-0 w-full" />
+                            <button aria-label="Uložit název služby" onClick={() => updateServiceName(service.id)} className="text-blue-600"><CheckIcon /></button>
+                          </div>
+                        ) : service.name}
+                      </td>
+                      <td className="p-2 align-middle">
+                        {editingService === `type-${service.id}` ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <select aria-label="Typ přepravy" value={service.shipment_type} onChange={event => updateService(service.id, { shipment_type: event.target.value })} className="border rounded px-1 py-1 max-w-full">
+                              <option value="balik">Balík</option><option value="paleta">Paleta</option>
+                            </select>
+                            <button aria-label="Zavřít editaci typu" onClick={() => setEditingService(null)} className="text-blue-600"><CheckIcon /></button>
+                          </div>
+                        ) : <div className="flex flex-wrap items-center gap-2"><span>{service.shipment_type === 'balik' ? 'Balík' : 'Paleta'}</span>
+                          <button title="Změnit typ přepravy" onClick={() => setEditingService(`type-${service.id}`)} className="text-gray-500 hover:text-blue-600"><EditIcon /></button>
+                        </div>}
+                      </td>
+                      <td className="p-2 align-middle text-right">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {editingService === service.id ? <>
+                            <input type="number" aria-label="Cena služby" value={priceDraft} onChange={event => setPriceDraft(event.target.value)}
+                              onKeyDown={event => { if (event.key === 'Enter') updateServicePrice(service.id); }} className="border rounded w-20 max-w-full px-2 py-1 text-right" />
+                            <button aria-label="Uložit cenu" onClick={() => updateServicePrice(service.id)} className="text-blue-600"><CheckIcon /></button>
+                          </> : <><span className="tabular-nums">{service.price_per_unit}</span>
+                            <button title="Upravit cenu" onClick={() => { setPriceDraft(String(service.price_per_unit)); setEditingService(service.id); }} className="text-gray-500 hover:text-blue-600"><EditIcon /></button>
+                          </>}
+                        </div>
+                      </td>
+                      <td className="p-2 text-center">
+                        <button title="Upravit název služby" onClick={() => { setServiceNameDraft(service.name); setEditingService(`name-${service.id}`); }} className="text-gray-500 hover:text-blue-600"><EditIcon /></button>
+                      </td>
+                    </tr>
+                  ))}
+                  {!carrier.services.length && <tr><td colSpan={4} className="p-4 text-gray-500">Žádné služby.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </article>
         ))}
-          </div>
-        </section>
-      ))}
+      </section>
       </fieldset>
     </div>
   )

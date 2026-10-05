@@ -18,6 +18,22 @@ DO $$ BEGIN
     RAISE EXCEPTION 'FAIL: admin browser changed is_super_admin';
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
+-- V1 regression: name/type edits must never create price history.
+UPDATE public.services SET name = 'Renamed service', shipment_type = 'paleta' WHERE id = :'service_id';
+SELECT pg_temp.check_true((SELECT count(*) = 0 FROM public.price_change_notifications WHERE service_id = :'service_id'), 'name and type edits create no price notifications');
+UPDATE public.carriers SET supported_countries = ARRAY['CZ','AT','RO'] WHERE id = :'carrier_id';
+SELECT pg_temp.check_true((SELECT supported_countries = ARRAY['CZ','AT','RO'] FROM public.carriers WHERE id = :'carrier_id'), 'admin can add AT and RO');
+UPDATE public.carriers SET supported_countries = ARRAY['AT','RO'] WHERE id = :'carrier_id';
+SELECT pg_temp.check_true((SELECT supported_countries = ARRAY['AT','RO'] FROM public.carriers WHERE id = :'carrier_id'), 'admin can remove a country');
+SELECT id AS at_carrier FROM public.create_carrier_with_services(
+  '{"name":"Austria fixture","supported_countries":["AT"]}',
+  '[{"name":"AT parcel","shipment_type":"balik","price_per_unit":10}]') \gset
+SELECT id AS ro_carrier FROM public.create_carrier_with_services(
+  '{"name":"Romania fixture","supported_countries":["RO"]}',
+  '[{"name":"RO parcel","shipment_type":"balik","price_per_unit":10}]') \gset
+SELECT pg_temp.check_true((SELECT supported_countries = ARRAY['AT'] FROM public.carriers WHERE id = :'at_carrier'), 'create AT persisted');
+SELECT pg_temp.check_true((SELECT supported_countries = ARRAY['RO'] FROM public.carriers WHERE id = :'ro_carrier'), 'create RO persisted');
+DELETE FROM public.carriers WHERE id IN (:'at_carrier', :'ro_carrier');
 UPDATE public.services SET price_per_unit = 234 WHERE id = :'service_id' RETURNING id, price_per_unit;
 SELECT pg_temp.check_true((SELECT price_per_unit = 234 FROM public.services WHERE id = :'service_id'), 'price persisted');
 SELECT pg_temp.check_true((SELECT count(*) = 1 FROM public.price_change_notifications WHERE service_id = :'service_id' AND new_price = 234), 'invoker trigger inserted notification');

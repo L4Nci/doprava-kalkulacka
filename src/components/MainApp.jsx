@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useProducts } from '../hooks/useProducts.jsx'
 import { useCurrency } from '../hooks/useCurrency'
 import { PriceNotification } from './PriceNotification'
+import { COUNTRY_NAMES as countryNames } from '../config/countries'
 import { activeCarriers } from '../utils/carrierUtils'
 
 function MainApp() {
@@ -29,17 +30,6 @@ function MainApp() {
       });
     }
   }, [products]);
-
-  const countryNames = useMemo(() => ({
-    CZ: "Česko",
-    SK: "Slovensko",
-    HR: "Chorvatsko",
-    DE: "Německo",
-    HU: "Maďarsko",
-    PL: "Polsko",
-    SI: "Slovinsko",
-    RO: "Rumunsko"
-  }), []);
 
   useEffect(() => {
     let isMounted = true;
@@ -93,7 +83,7 @@ function MainApp() {
 
     fetchCarriers();
     return () => { isMounted = false };
-  }, [countryNames]);
+  }, []);
 
   useEffect(() => {
     const channel = supabase

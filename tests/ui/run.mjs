@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
+import { carrierUxAcceptance } from './carrierUx.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const browser = await chromium.launch({ headless: true, args: ['--disable-features=LocalNetworkAccessChecks,LocalNetworkAccessChecksWebSockets'], ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
@@ -29,7 +30,7 @@ async function editPrice(value) {
   await page.getByLabel('Cena služby', { exact: true }).fill(value);
 }
 async function carrierCard(name) {
-  return page.locator('section').filter({ has: page.getByRole('heading', { name: name, exact: true }) }).locator('.border.rounded-lg').filter({ has: page.getByRole('heading', { name, exact: true }) });
+  return page.getByRole('article', { name, exact: true });
 }
 try {
   await page.goto(`${base}/__crud-test.html`);
@@ -67,6 +68,7 @@ try {
   await glsCard.getByTitle('Upravit dopravce').click();
   await page.getByLabel('URL loga').fill('/icons/icon-512.png');
   await page.getByRole('button', { name: 'Uložit dopravce' }).click();
+  await page.getByLabel('URL loga').waitFor({ state: 'detached' });
   glsCard = await carrierCard('GLS HU');
   assert.equal(await glsCard.getByRole('img', { name: 'GLS HU' }).getAttribute('src'), '/icons/icon-512.png');
   await glsCard.getByTitle('Upravit dopravce').click();
@@ -91,14 +93,18 @@ try {
   await visible(page.getByText('234', { exact: true }));
   console.log('PASS: admin create + price draft + save + reload');
   glsCard = await carrierCard('GLS HU');
+  await glsCard.locator('summary').click();
   await glsCard.getByRole('button', { name: 'Deaktivovat dopravce', exact: true }).click();
-  await visible(page.getByRole('button', { name: 'Aktivovat dopravce', exact: true }));
+  await page.getByRole('button', { name: /^Neaktivní \(/ }).click();
+  await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
   assert.equal((await persisted()).carriers[0].active, false);
   await page.reload();
-  await visible(page.getByRole('heading', { name: 'Neaktivní dopravci', exact: true }));
+  await page.getByRole('button', { name: /^Neaktivní \(/ }).click();
   glsCard = await carrierCard('GLS HU');
+  await glsCard.locator('summary').click();
   await glsCard.getByRole('button', { name: 'Aktivovat dopravce', exact: true }).click();
-  await visible(page.getByRole('button', { name: 'Deaktivovat dopravce', exact: true }));
+  await page.getByRole('button', { name: /^Aktivní \(/ }).click();
+  await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
   assert.equal((await persisted()).carriers[0].active, true);
   await page.reload();
   await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
@@ -117,6 +123,7 @@ try {
   console.log('PASS: rejected and zero-row writes show error and restore confirmed price');
   await page.evaluate(() => localStorage.setItem('crud-test-role', 'nonadmin'));
   glsCard = await carrierCard('GLS HU');
+  await glsCard.locator('summary').click();
   await glsCard.getByRole('button', { name: 'Deaktivovat dopravce', exact: true }).click();
   await visible(page.getByRole('alert'));
   assert.equal((await persisted()).carriers[0].active, true);
@@ -127,7 +134,8 @@ try {
   await visible(page.getByText('234', { exact: true }));
   await page.getByRole('button', { name: 'Obnovit data' }).click();
   await page.evaluate(() => localStorage.setItem('crud-test-role', 'admin'));
-  await page.getByTitle('Smazat dopravce').click();
+  await glsCard.locator('summary').click();
+  await glsCard.getByTitle('Smazat dopravce').click();
   await page.getByPlaceholder('smazat').fill('smazat');
   await page.locator('div.fixed').filter({ has: page.getByRole('heading', { name: 'Potvrzení smazání' }) }).getByRole('button', { name: 'Smazat dopravce', exact: true }).click();
   await visible(page.getByRole('alert'));
@@ -136,9 +144,11 @@ try {
   const deleteModal = page.locator('div.fixed').filter({ has: page.getByRole('heading', { name: 'Potvrzení smazání' }) });
   await visible(deleteModal.getByRole('button', { name: 'Deaktivovat dopravce', exact: true }));
   await deleteModal.getByRole('button', { name: 'Deaktivovat dopravce', exact: true }).click();
-  await visible(page.getByRole('button', { name: 'Aktivovat dopravce', exact: true }));
+  await page.getByRole('button', { name: /^Neaktivní \(/ }).click();
+  await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
   assert.equal((await persisted()).carriers[0].active, false);
   await page.reload();
+  await page.getByRole('button', { name: /^Neaktivní \(/ }).click();
   await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
   assert.equal((await persisted()).carriers.length, 1);
   assert.equal((await persisted()).notifications.length, 1);
@@ -151,6 +161,7 @@ try {
   });
   await page.reload();
   const cleanCard = await carrierCard('Bez historie');
+  await cleanCard.locator('summary').click();
   await cleanCard.getByTitle('Smazat dopravce').click();
   await page.getByPlaceholder('smazat').fill('smazat');
   await page.locator('div.fixed').filter({ has: page.getByRole('heading', { name: 'Potvrzení smazání' }) }).getByRole('button', { name: 'Smazat dopravce', exact: true }).click();
@@ -216,6 +227,7 @@ try {
   assert.equal(await page.locator('[aria-label$="nepřečtených změn"]').count(), 0);
   assert.equal((await persisted()).notifications.filter(notification => !notification.read).length, 0);
   console.log('PASS: unread badge persists via RPC while full read history remains visible');
+  await carrierUxAcceptance(page, base);
   await count(page.locator('vite-error-overlay'), 0);
   assert.deepEqual(errors, []);
   await page.screenshot({ path: '/tmp/doprava-crud-ui.png', fullPage: true });

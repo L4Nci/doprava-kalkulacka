@@ -3,9 +3,9 @@ import { supabase } from '../lib/supabaseClient';
 import Courier from './Courier';
 import Products from './Products';
 
-function Admin({ onBack }) {
+function Admin() {
   const [activeTab, setActiveTab] = useState('carriers');
-  const [adminInfo, setAdminInfo] = useState(null);
+  const [, setAdminInfo] = useState(null);
 
   useEffect(() => {
     async function getAdminInfo() {
@@ -52,7 +52,7 @@ function Admin({ onBack }) {
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-7xl mx-auto">
+      <div className={activeTab === 'carriers' ? 'max-w-[1440px] mx-auto' : 'max-w-7xl mx-auto'}>
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Admin Panel</h1>
         </div>
