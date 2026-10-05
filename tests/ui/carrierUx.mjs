@@ -119,9 +119,24 @@ export async function carrierUxAcceptance(page, base) {
   console.log('PASS: CREATE AT/RO, edit name/countries, add AT/RO, remove CZ, confirmed persistence across reload');
   const serviceRow = () => card('Žlutý dopravce upravený').locator('tbody tr').first();
   await serviceRow().getByTitle('Upravit název služby').click();
+  const nameInput = page.getByLabel('Název služby', { exact: true });
+  const confirmedBeforeValidation = await persisted();
+  const callsBeforeValidation = await page.evaluate(() => window.crudCalls.length);
+  for (const invalidName of ['', '   ']) {
+    await nameInput.fill(invalidName);
+    if (invalidName === '') await page.getByRole('button', { name: 'Uložit název služby' }).click();
+    else await nameInput.press('Enter');
+    await wait(page.getByRole('alert').filter({ hasText: 'Vyplňte název služby.' }));
+    await wait(nameInput);
+    assert.equal(await nameInput.inputValue(), invalidName, 'validation keeps the editor and draft open');
+    assert.equal(await page.evaluate(() => window.crudCalls.length), callsBeforeValidation, 'invalid name sends no UPDATE or other DB request');
+    assert.deepEqual(await persisted(), confirmedBeforeValidation, 'confirmed DB state is unchanged');
+  }
+  console.log('PASS: empty/whitespace service names show validation error, keep edit open, send no request and preserve confirmed DB state');
   await page.getByLabel('Název služby', { exact: true }).fill('Nový Express');
   await page.getByRole('button', { name: 'Uložit název služby' }).click();
   await wait(page.getByText('Nový Express', { exact: true }));
+  await page.getByRole('alert').waitFor({ state: 'detached' });
   assert.equal((await persisted()).notifications.length, 0);
   await serviceRow().getByTitle('Změnit typ přepravy').click();
   await page.getByLabel('Typ přepravy', { exact: true }).selectOption('paleta');

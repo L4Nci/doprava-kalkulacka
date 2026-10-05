@@ -81,12 +81,9 @@ const Courier = () => {
   };
 
   const updateServiceName = async (serviceId) => {
-    const name = serviceNameDraft.trim();
-    if (!name) {
-      mutation.setError?.('Vyplňte název služby.');
-      return;
-    }
     const saved = await mutation.run(async () => {
+      const name = serviceNameDraft.trim();
+      if (!name) throw new Error('Vyplňte název služby.');
       await mutations.update('services', serviceId, { name });
       await fetchCarriers();
     });
