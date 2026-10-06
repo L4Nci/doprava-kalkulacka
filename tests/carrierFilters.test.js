@@ -5,8 +5,8 @@ import { COUNTRIES, COUNTRY_NAMES } from '../src/config/countries.js';
 
 const carriers = [
   { id: 'z', name: 'Žlutý dopravce', active: true, supported_countries: ['CZ', 'AT'], services: [
-    { name: 'Express', shipment_type: 'balik' }, { name: 'Standard', shipment_type: 'paleta' }] },
-  { id: 'a', name: 'Alfa', active: false, supported_countries: ['SK', 'RO'], services: [{ name: 'Rychlá služba', shipment_type: 'paleta' }] },
+    { name: 'Express', shipment_type: 'balik', price_per_unit: 100 }, { name: 'Standard', shipment_type: 'paleta', price_per_unit: 900 }] },
+  { id: 'a', name: 'Alfa', active: false, supported_countries: ['SK', 'RO'], services: [{ name: 'Rychlá služba', shipment_type: 'paleta', price_per_unit: 800 }] },
   { id: 'b', name: 'Bez služeb', active: true, supported_countries: ['RO'], services: [] },
 ];
 const ids = filters => filterCarriers(carriers, filters).map(carrier => carrier.id);
@@ -44,4 +44,33 @@ test('Czech sorting in both directions; fetched rows stay intact', () => {
   assert.deepEqual(carriers, before);
   const names = ['I', 'Ch', 'H'].map(name => ({ name, active: true }));
   assert.deepEqual(filterCarriers(names).map(c => c.name), ['H', 'Ch', 'I']);
+});
+test('price sorting uses the lowest currently matching service price', () => {
+  const priced = [
+    { id: 'alpha', name: 'Áčko', active: true, services: [
+      { name: 'Express', shipment_type: 'balik', price_per_unit: 100 },
+      { name: 'Paleta', shipment_type: 'paleta', price_per_unit: 800 },
+    ] },
+    { id: 'beta', name: 'Béčko', active: true, services: [
+      { name: 'Standard', shipment_type: 'balik', price_per_unit: 200 },
+      { name: 'Express paleta', shipment_type: 'paleta', price_per_unit: 700 },
+    ] },
+  ];
+  const sorted = filters => filterCarriers(priced, filters).map(carrier => carrier.id);
+  assert.deepEqual(sorted({ sort: 'price-asc' }), ['alpha', 'beta']);
+  assert.deepEqual(sorted({ sort: 'price-desc' }), ['beta', 'alpha']);
+  assert.deepEqual(sorted({ type: 'paleta', sort: 'price-asc' }), ['beta', 'alpha']);
+  assert.deepEqual(sorted({ type: 'balik', sort: 'price-desc' }), ['beta', 'alpha']);
+  assert.deepEqual(sorted({ search: 'express', sort: 'price-desc' }), ['beta', 'alpha']);
+});
+test('price ties use Czech names and missing prices always sort last', () => {
+  const priced = [
+    { id: 'z', name: 'Žofie', active: true, services: [{ name: 'A', shipment_type: 'balik', price_per_unit: 100 }] },
+    { id: 'c', name: 'Čenda', active: true, services: [{ name: 'B', shipment_type: 'balik', price_per_unit: '100' }] },
+    { id: 'empty', name: 'Bez služby', active: true, services: [] },
+    { id: 'invalid', name: 'Bez ceny', active: true, services: [{ name: 'C', shipment_type: 'balik', price_per_unit: null }] },
+  ];
+  const sorted = sort => filterCarriers(priced, { sort }).map(carrier => carrier.id);
+  assert.deepEqual(sorted('price-asc'), ['c', 'z', 'invalid', 'empty']);
+  assert.deepEqual(sorted('price-desc'), ['c', 'z', 'invalid', 'empty']);
 });

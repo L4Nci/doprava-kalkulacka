@@ -9,7 +9,7 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-const base = 'http://127.0.0.1:5173';
+const base = process.env.UI_BASE || 'http://127.0.0.1:5173';
 const html = component => `<!doctype html><html><head><title>Offline CRUD acceptance</title>
 <script type="module">import RefreshRuntime from '/@react-refresh';RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>type=>type;window.__vite_plugin_react_preamble_installed__=true;</script>
 <script type="module" src="/@vite/client"></script></head><body><div id="root"></div>
@@ -88,9 +88,9 @@ try {
   await editPrice('234');
   assert.equal((await persisted()).services[0].price_per_unit, 100, 'typing must not save');
   await page.getByRole('button', { name: 'Uložit cenu' }).click();
-  await visible(page.getByText('234', { exact: true }));
+  await visible(page.getByText('234 Kč', { exact: true }));
   await page.reload();
-  await visible(page.getByText('234', { exact: true }));
+  await visible(page.getByText('234 Kč', { exact: true }));
   console.log('PASS: admin create + price draft + save + reload');
   glsCard = await carrierCard('GLS HU');
   await glsCard.locator('summary').click();
@@ -116,7 +116,7 @@ try {
     await editPrice('999');
     await page.getByRole('button', { name: 'Uložit cenu' }).click();
     await visible(page.getByRole('alert'));
-    await visible(page.getByText('234', { exact: true }));
+    await visible(page.getByText('234 Kč', { exact: true }));
     assert.equal((await persisted()).services[0].price_per_unit, 234);
     await page.getByRole('button', { name: 'Obnovit data' }).click();
   }
@@ -131,7 +131,7 @@ try {
   await editPrice('999');
   await page.getByRole('button', { name: 'Uložit cenu' }).click();
   await visible(page.getByRole('alert'));
-  await visible(page.getByText('234', { exact: true }));
+  await visible(page.getByText('234 Kč', { exact: true }));
   await page.getByRole('button', { name: 'Obnovit data' }).click();
   await page.evaluate(() => localStorage.setItem('crud-test-role', 'admin'));
   await glsCard.locator('summary').click();

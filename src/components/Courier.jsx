@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { EditIcon, CheckIcon } from './icons';
 
@@ -141,7 +141,10 @@ const Courier = () => {
     });
   };
 
-  const filteredCarriers = filterCarriers(carriers, { status, search, countries, type, sort });
+  const filteredCarriers = useMemo(
+    () => filterCarriers(carriers, { status, search, countries, type, sort }),
+    [carriers, status, search, countries, type, sort]
+  );
   const activeCount = carriers.filter(carrier => carrier.active).length;
   const hasFilters = Boolean(search || countries.length || type !== 'all' || sort !== 'asc');
   const resetFilters = () => { setSearch(''); setCountries([]); setType('all'); setSort('asc'); };
@@ -330,7 +333,7 @@ const Courier = () => {
         </div>
       )}
 
-      <div role="group" aria-label="Stav dopravců" className="flex flex-wrap gap-2 mb-4">
+      <div role="group" aria-label="Stav dopravců" className="flex flex-wrap gap-2 mb-3">
         {[['active', 'Aktivní', activeCount], ['inactive', 'Neaktivní', carriers.length - activeCount], ['all', 'Všichni', carriers.length]].map(([value, label, count]) => (
           <button key={value} aria-pressed={status === value} onClick={() => setStatus(value)}
             className={`rounded px-4 py-2 font-medium ${status === value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
@@ -338,32 +341,42 @@ const Courier = () => {
           </button>
         ))}
       </div>
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-gray-50 p-3 mb-3">
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-3 rounded-lg border bg-gray-50 p-3 mb-3">
         <label className="flex-1 basis-full xl:basis-64 min-w-0 text-sm font-medium">
           Vyhledávání
           <input type="search" value={search} onChange={event => setSearch(event.target.value)}
             placeholder="Hledat dopravce nebo službu…" className="mt-1 block w-full border rounded p-2 font-normal" />
         </label>
-        <details className="relative">
-          <summary className="cursor-pointer border rounded bg-white px-3 py-2">{countries.length ? `Země (${countries.length})` : 'Všechny země'}</summary>
-          <div className="absolute left-0 top-full mt-1 z-20 w-56 max-h-80 overflow-y-auto rounded border bg-white shadow-lg p-3 space-y-2" role="group" aria-label="Filtr zemí">
-            {COUNTRIES.map(({ code, name }) => (
-              <label key={code} className="flex gap-2 items-center text-sm">
-                <input type="checkbox" checked={countries.includes(code)} onChange={event => setCountries(event.target.checked ? [...countries, code] : countries.filter(country => country !== code))} />
-                {code} — {name}
-              </label>
+        <div className="basis-full xl:basis-auto">
+          <p className="mb-1 text-sm font-medium">Země</p>
+          <div role="group" aria-label="Filtr zemí" className="flex flex-wrap gap-1.5">
+            <button type="button" aria-pressed={countries.length === 0} onClick={() => setCountries([])}
+              className={`rounded border px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${countries.length === 0 ? 'border-blue-300 bg-blue-100 text-blue-800 font-medium' : 'bg-white hover:bg-gray-100'}`}>
+              Vše
+            </button>
+            {COUNTRIES.map(({ code, name }) => {
+              const selected = countries.includes(code);
+              return <button key={code} type="button" title={name} aria-pressed={selected}
+                onClick={() => setCountries(current => selected ? current.filter(country => country !== code) : [...current, code])}
+                className={`rounded border px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${selected ? 'border-blue-300 bg-blue-100 text-blue-800 font-medium' : 'bg-white hover:bg-gray-100'}`}>
+                {code}
+              </button>;
+            })}
+          </div>
+        </div>
+        <div className="shrink-0">
+          <p className="mb-1 text-sm font-medium">Typ služby</p>
+          <div role="group" aria-label="Typ služby" className="flex rounded border bg-white overflow-hidden">
+            {[['all', 'Vše'], ['balik', 'Balík'], ['paleta', 'Paleta']].map(([value, label]) => (
+              <button key={value} aria-pressed={type === value} onClick={() => setType(value)}
+                className={`px-3 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${type === value ? 'bg-blue-100 text-blue-800 font-medium' : 'hover:bg-gray-100'}`}>{label}</button>
             ))}
           </div>
-        </details>
-        <div role="group" aria-label="Typ služby" className="flex rounded border bg-white overflow-hidden">
-          {[['all', 'Vše'], ['balik', 'Balík'], ['paleta', 'Paleta']].map(([value, label]) => (
-            <button key={value} aria-pressed={type === value} onClick={() => setType(value)}
-              className={`px-3 py-2 ${type === value ? 'bg-blue-100 text-blue-800 font-medium' : 'hover:bg-gray-100'}`}>{label}</button>
-          ))}
         </div>
         <label className="text-sm font-medium">Řazení
-          <select value={sort} onChange={event => setSort(event.target.value)} className="block mt-1 border rounded bg-white p-2 font-normal">
+          <select value={sort} onChange={event => setSort(event.target.value)} className="block mt-1 border rounded bg-white px-2 py-1.5 font-normal">
             <option value="asc">Název A–Z</option><option value="desc">Název Z–A</option>
+            <option value="price-asc">Cena ↑</option><option value="price-desc">Cena ↓</option>
           </select>
         </label>
       </div>
@@ -375,10 +388,10 @@ const Courier = () => {
         <p>Žádný dopravce neodpovídá filtrům.</p>
         {!hasFilters && <button className="mt-2 text-blue-700 underline" onClick={resetFilters}>Vymazat filtry</button>}
       </div>}
-      <section aria-label="Seznam dopravců" className="space-y-4">
+      <section aria-label="Seznam dopravců" className="space-y-3">
         {filteredCarriers.map(carrier => (
           <article key={carrier.id} className="border rounded-lg bg-white min-w-0" aria-label={carrier.name}>
-            <div className="flex items-start gap-3 p-4 border-b">
+            <div className="flex items-start gap-3 px-3 py-2.5 border-b">
               <CarrierLogo key={carrier.logo_url || 'no-logo'} carrier={carrier} />
               <div className="flex-1 min-w-0">
                 {editingCarrier === `carrier-${carrier.id}` ? (
@@ -406,13 +419,13 @@ const Courier = () => {
                 ) : (
                   <>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-semibold break-words min-w-0">{carrier.name}</h3>
+                      <h3 className="text-lg font-bold break-words min-w-0 text-gray-900">{carrier.name}</h3>
                       <span className={`text-xs rounded px-2 py-1 ${carrier.active ? 'bg-green-50 text-green-800' : 'bg-gray-100 text-gray-700'}`}>{carrier.active ? 'Aktivní' : 'Neaktivní'}</span>
                       <button title="Upravit dopravce" onClick={() => {
                         setNameDraft(carrier.name); setLogoDraft(carrier.logo_url || ''); setCountriesDraft([...(carrier.supported_countries || [])]); setEditingCarrier(`carrier-${carrier.id}`);
                       }} className="flex gap-1 items-center text-sm text-blue-700"><EditIcon /> Upravit</button>
                     </div>
-                    <p className="text-sm text-gray-600 mt-1">Podporované země: {carrier.supported_countries?.join(', ') || 'Žádné'}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">Podporované země: {carrier.supported_countries?.join(', ') || 'Žádné'}</p>
                   </>
                 )}
               </div>
@@ -426,54 +439,67 @@ const Courier = () => {
                 </div>
               </details>
             </div>
-            <div className="overflow-x-auto">
+            <div className="min-w-0">
               <table className="w-full table-fixed text-sm">
-                <colgroup><col className="w-[34%] sm:w-auto" /><col className="w-[25%] sm:w-44" /><col className="w-[25%] sm:w-48" /><col className="w-[16%] sm:w-20" /></colgroup>
-                <thead className="bg-gray-50 text-left text-gray-600"><tr>
-                  <th scope="col" className="p-2 sm:px-4 font-medium">Název služby</th><th scope="col" className="p-2 font-medium">Typ přepravy</th>
-                  <th scope="col" className="p-2 font-medium text-right">Cena za jednotku (Kč)</th><th scope="col" className="p-2 font-medium text-center">Akce</th>
+                <colgroup><col className="w-[48%] sm:w-auto" /><col className="w-[22%] sm:w-44" /><col className="w-[30%] sm:w-52" /></colgroup>
+                <thead className="bg-gray-50 text-left text-xs text-gray-500"><tr>
+                  <th scope="col" className="px-2 py-1.5 sm:px-3 font-medium">Název služby</th><th scope="col" className="px-2 py-1.5 font-medium">Typ přepravy</th>
+                  <th scope="col" className="px-2 py-1.5 font-medium text-right">Cena za jednotku (Kč)</th>
                 </tr></thead>
                 <tbody>
                   {carrier.services.map(service => (
                     <tr key={service.id} className="border-t hover:bg-gray-50">
-                      <td className="p-2 sm:px-4 break-words align-middle">
+                      <td className="px-2 py-1.5 sm:px-3 break-words align-middle">
                         {editingService === `name-${service.id}` ? (
                           <div className="flex items-center gap-2">
                             <input type="text" aria-label="Název služby" value={serviceNameDraft} onChange={event => setServiceNameDraft(event.target.value)}
-                              onKeyDown={event => { if (event.key === 'Enter') updateServiceName(service.id); }} className="border rounded px-2 py-1 min-w-0 w-full" />
+                              onKeyDown={event => {
+                                if (event.key === 'Enter') updateServiceName(service.id);
+                                if (event.key === 'Escape') { setEditingService(null); setServiceNameDraft(''); }
+                              }} className="border rounded px-2 py-1 min-w-0 w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" />
                             <button aria-label="Uložit název služby" onClick={() => updateServiceName(service.id)} className="text-blue-600"><CheckIcon /></button>
                           </div>
-                        ) : service.name}
+                        ) : <button type="button" title="Upravit název služby" aria-label={`Upravit název služby ${service.name}`}
+                          onClick={() => { setServiceNameDraft(service.name); setEditingService(`name-${service.id}`); }}
+                          className="group/edit -mx-1 inline-flex max-w-full items-center gap-1 rounded px-1 text-left font-medium text-gray-900 underline decoration-dotted decoration-gray-300 underline-offset-4 hover:bg-blue-50 hover:text-blue-700 hover:decoration-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                          <span className="min-w-0 break-words">{service.name}</span>
+                          <span aria-hidden="true" className="shrink-0 text-gray-400 opacity-60 sm:opacity-0 sm:group-hover/edit:opacity-100 sm:group-focus-visible/edit:opacity-100"><EditIcon /></span>
+                        </button>}
                       </td>
-                      <td className="p-2 align-middle">
+                      <td className="px-2 py-1.5 align-middle">
                         {editingService === `type-${service.id}` ? (
                           <div className="flex flex-wrap items-center gap-2">
-                            <select aria-label="Typ přepravy" value={service.shipment_type} onChange={event => updateService(service.id, { shipment_type: event.target.value })} className="border rounded px-1 py-1 max-w-full">
+                            <select aria-label="Typ přepravy" value={service.shipment_type} onChange={event => updateService(service.id, { shipment_type: event.target.value })}
+                              onKeyDown={event => { if (event.key === 'Escape') setEditingService(null); }} className="border rounded px-1 py-1 max-w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                               <option value="balik">Balík</option><option value="paleta">Paleta</option>
                             </select>
                             <button aria-label="Zavřít editaci typu" onClick={() => setEditingService(null)} className="text-blue-600"><CheckIcon /></button>
                           </div>
-                        ) : <div className="flex flex-wrap items-center gap-2"><span>{service.shipment_type === 'balik' ? 'Balík' : 'Paleta'}</span>
-                          <button title="Změnit typ přepravy" onClick={() => setEditingService(`type-${service.id}`)} className="text-gray-500 hover:text-blue-600"><EditIcon /></button>
-                        </div>}
+                        ) : <button type="button" title="Změnit typ přepravy" onClick={() => setEditingService(`type-${service.id}`)}
+                          className="group/edit -mx-1 inline-flex items-center gap-1 rounded px-1 underline decoration-dotted decoration-gray-300 underline-offset-4 hover:bg-blue-50 hover:text-blue-700 hover:decoration-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                          <span>{service.shipment_type === 'balik' ? 'Balík' : 'Paleta'}</span>
+                          <span aria-hidden="true" className="text-gray-400 opacity-60 sm:opacity-0 sm:group-hover/edit:opacity-100 sm:group-focus-visible/edit:opacity-100"><EditIcon /></span>
+                        </button>}
                       </td>
-                      <td className="p-2 align-middle text-right">
+                      <td className="px-2 py-1.5 align-middle text-right">
                         <div className="flex flex-wrap items-center justify-end gap-2">
                           {editingService === service.id ? <>
                             <input type="number" aria-label="Cena služby" value={priceDraft} onChange={event => setPriceDraft(event.target.value)}
-                              onKeyDown={event => { if (event.key === 'Enter') updateServicePrice(service.id); }} className="border rounded w-20 max-w-full px-2 py-1 text-right" />
+                              onKeyDown={event => {
+                                if (event.key === 'Enter') updateServicePrice(service.id);
+                                if (event.key === 'Escape') { setEditingService(null); setPriceDraft(''); }
+                              }} className="border rounded w-20 max-w-full px-2 py-1 text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" />
                             <button aria-label="Uložit cenu" onClick={() => updateServicePrice(service.id)} className="text-blue-600"><CheckIcon /></button>
-                          </> : <><span className="tabular-nums">{service.price_per_unit}</span>
-                            <button title="Upravit cenu" onClick={() => { setPriceDraft(String(service.price_per_unit)); setEditingService(service.id); }} className="text-gray-500 hover:text-blue-600"><EditIcon /></button>
-                          </>}
+                          </> : <button type="button" title="Upravit cenu" onClick={() => { setPriceDraft(String(service.price_per_unit)); setEditingService(service.id); }}
+                            className="group/edit -mx-1 inline-flex items-center gap-1 rounded px-1 tabular-nums underline decoration-dotted decoration-gray-300 underline-offset-4 hover:bg-blue-50 hover:text-blue-700 hover:decoration-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                            <span>{service.price_per_unit} Kč</span>
+                            <span aria-hidden="true" className="text-gray-400 opacity-60 sm:opacity-0 sm:group-hover/edit:opacity-100 sm:group-focus-visible/edit:opacity-100"><EditIcon /></span>
+                          </button>}
                         </div>
-                      </td>
-                      <td className="p-2 text-center">
-                        <button title="Upravit název služby" onClick={() => { setServiceNameDraft(service.name); setEditingService(`name-${service.id}`); }} className="text-gray-500 hover:text-blue-600"><EditIcon /></button>
                       </td>
                     </tr>
                   ))}
-                  {!carrier.services.length && <tr><td colSpan={4} className="p-4 text-gray-500">Žádné služby.</td></tr>}
+                  {!carrier.services.length && <tr><td colSpan={3} className="p-3 text-gray-500">Žádné služby.</td></tr>}
                 </tbody>
               </table>
             </div>
