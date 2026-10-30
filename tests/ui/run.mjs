@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { carrierUxAcceptance } from './carrierUx.mjs';
+import { changeHistoryAcceptance } from './changeHistory.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const browser = await chromium.launch({ headless: true, args: ['--disable-features=LocalNetworkAccessChecks,LocalNetworkAccessChecksWebSockets'], ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
@@ -10,10 +11,10 @@ const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
 const base = process.env.UI_BASE || 'http://127.0.0.1:5173';
-const html = component => `<!doctype html><html><head><title>Offline CRUD acceptance</title>
+const html = component => `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Offline CRUD acceptance</title>
 <script type="module">import RefreshRuntime from '/@react-refresh';RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>type=>type;window.__vite_plugin_react_preamble_installed__=true;</script>
 <script type="module" src="/@vite/client"></script></head><body><div id="root"></div>
-<script type="module">import React from '/node_modules/.vite/deps/react.js';import ReactDOM from '/node_modules/.vite/deps/react-dom_client.js';import * as Module from '/src/components/${component}.jsx';import '/src/index.css';const Component=Module.default||Module.PriceNotification;ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));</script></body></html>`;
+<script type="module">import React from '/node_modules/.vite/deps/react.js';import ReactDOM from '/node_modules/.vite/deps/react-dom_client.js';import * as Module from '/src/components/${component === 'HistoryWithCourier' ? 'Courier' : component}.jsx';${component === 'HistoryWithCourier' ? "import { PriceNotification } from '/src/components/PriceNotification.jsx';" : ''}import '/src/index.css';const Component=Module.default||Module.PriceNotification;ReactDOM.createRoot(document.getElementById('root')).render(${component === 'HistoryWithCourier' ? 'React.createElement(React.Fragment,null,React.createElement(Component),React.createElement(PriceNotification))' : 'React.createElement(Component)'});</script></body></html>`;
 await page.route('**/*', route => {
   const url = new URL(route.request().url());
   if (url.origin === 'http://localhost:3001' && url.pathname === '/audit-log') return route.fulfill({ json: { success: true }, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' } });
@@ -109,7 +110,7 @@ try {
   await page.reload();
   await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
   assert.equal((await persisted()).services.length, 1);
-  assert.equal((await persisted()).notifications.length, 1);
+  assert.equal((await persisted()).notifications.filter(notification => notification.event_type === 'price_changed').length, 1);
   console.log('PASS: deactivate/reactivate persists and retains services and history');
   for (const mode of ['error', 'zero']) {
     await page.evaluate(mode => localStorage.setItem('crud-test-fail', mode), mode);
@@ -151,7 +152,7 @@ try {
   await page.getByRole('button', { name: /^Neaktivní \(/ }).click();
   await visible(page.getByRole('heading', { name: 'GLS HU', exact: true }));
   assert.equal((await persisted()).carriers.length, 1);
-  assert.equal((await persisted()).notifications.length, 1);
+  assert.equal((await persisted()).notifications.filter(notification => notification.event_type === 'price_changed').length, 1);
   console.log('PASS: linked-history delete rejected, UI offers deactivation, history retained');
   await page.evaluate(() => {
     const rows = JSON.parse(localStorage.getItem('crud-test-db'));
@@ -204,8 +205,8 @@ try {
   });
   await page.goto(`${base}/__crud-test.html?component=PriceNotification`);
   await visible(page.getByLabel('4 nepřečtených změn'));
-  await page.getByRole('button', { name: 'Historie změn cen', exact: true }).click();
-  await visible(page.getByRole('heading', { name: 'Historie změn cen', exact: true }));
+  await page.getByRole('button', { name: 'Historie změn', exact: true }).click();
+  await visible(page.getByRole('heading', { name: 'Historie změn', exact: true }));
   await page.getByLabel('4 nepřečtených změn').waitFor({ state: 'detached' });
   assert.ok((await persisted()).notifications.every(notification => notification.read));
   await page.reload();
@@ -219,7 +220,7 @@ try {
   });
   await page.reload();
   await visible(page.getByLabel('1 nepřečtených změn'));
-  await page.getByRole('button', { name: 'Historie změn cen', exact: true }).click();
+  await page.getByRole('button', { name: 'Historie změn', exact: true }).click();
   await visible(page.getByText('345 Kč', { exact: true }));
   await visible(page.getByText('200 Kč', { exact: true }));
   await page.getByLabel('1 nepřečtených změn').waitFor({ state: 'detached' });
@@ -227,6 +228,7 @@ try {
   assert.equal(await page.locator('[aria-label$="nepřečtených změn"]').count(), 0);
   assert.equal((await persisted()).notifications.filter(notification => !notification.read).length, 0);
   console.log('PASS: unread badge persists via RPC while full read history remains visible');
+  await changeHistoryAcceptance(page, base);
   await carrierUxAcceptance(page, base);
   await count(page.locator('vite-error-overlay'), 0);
   assert.deepEqual(errors, []);
