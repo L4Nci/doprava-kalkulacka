@@ -47,3 +47,13 @@ UI test vykresluje skutečné komponenty s mock Supabase klientem, blokuje exter
 7. S novým service workerem jsou /rest/v1 a /auth/v1 NetworkOnly + no-store. Aktivace odstraní historickou supabase-cache. Nový frontend pod starým workerem odmítne API do potvrzení nové verze; dokončit aktualizaci/reload. Statické assety zůstávají cachované. Starý již otevřený frontend vyžaduje aktualizaci stránky.
 
 Až po schválení SQL a koordinovaném nasazení kompatibilního frontendu lze ověřit skutečnou Supabase integraci. Lokální testy neprokazují stav nasazení v produkci. Tento patch nic automaticky nenasazuje a neobsahuje produkční přihlašovací údaje.
+
+## Rozšíření zvonečku: Historie změn
+
+`supabase/manual/change-history.sql` je další jednorázový transakční skript k ručnímu nasazení vlastníkem DB po `admin-crud.sql`, `carrier-lifecycle.sql` a `price-notifications-read.sql`. Jde o stejný ruční postup jako u ostatních skriptů v této složce; projekt zde nepoužívá historii migrací Supabase CLI. Skript se nespouští automaticky ani proti vzdálenému projektu.
+
+Stávající tabulka `price_change_notifications` dostává `event_type` s výchozí hodnotou `price_changed` a `carrier_name` pro uložený název dopravce. Dosavadní cenové záznamy, trigger, pětisekundový interval, oprávnění, Realtime i RPC pro přečtení zůstávají zachované. Nový invoker trigger zapisuje `carrier_added`, `carrier_deactivated` a `carrier_activated`; běžná editace dopravce nebo opakované nastavení stejného stavu záznam nevytváří. Historické přidání/deaktivace před nasazením se zpětně nedoplňují.
+
+Nové události ukládají název v okamžiku změny a nepoužívají cizí klíče `carrier_id`/`service_id`. Tím zůstává možné trvale smazat dopravce bez cenové historie a jeho nové záznamy přesto zůstanou čitelné. Cenová historie nadále brání smazání příslušného dopravce i služby. Selhání při vytváření dopravce se službami vrátí zpět také nový záznam historie.
+
+`npm run test:db` navíc ověřuje původní cenovou historii po rozšíření schématu, nové události, změny bez efektu, původní název po přejmenování/smazání, přečtení stejnou RPC, zákaz přímého zápisu, rollback a původní pravidla mazání. Skript SQL je potřeba nasadit pro vznik nových událostí; samotná aktualizace frontendu je nevytváří.

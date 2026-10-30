@@ -68,3 +68,11 @@ INSERT INTO auth.users VALUES
 INSERT INTO public.admin_profiles(id,email,is_super_admin) VALUES
   ('00000000-0000-0000-0000-000000000001','admin@example.invalid',true),
   ('00000000-0000-0000-0000-000000000002','reader@example.invalid',false);
+
+-- A price event predating change-history.sql verifies upgrade compatibility.
+INSERT INTO public.carriers(id, name) VALUES
+  ('10000000-0000-0000-0000-000000000001', 'Legacy price fixture');
+INSERT INTO public.services(id, carrier_id, name, shipment_type, price_per_unit) VALUES
+  ('10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Legacy parcel', 'balik', 120);
+INSERT INTO public.price_change_notifications(id, carrier_id, service_id, old_price, new_price, read) VALUES
+  ('10000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 100, 120, true);

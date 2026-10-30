@@ -3,6 +3,16 @@ const seed = { carriers: [], services: [], notifications: [], products: [{ id: '
 function db() { return JSON.parse(localStorage.getItem('crud-test-db') || JSON.stringify(seed)); }
 function store(data) { localStorage.setItem('crud-test-db', JSON.stringify(data)); }
 function role() { return localStorage.getItem('crud-test-role') || 'admin'; }
+const notificationListeners = new Set();
+function notifyInserted() { for (const callback of notificationListeners) callback(); }
+function addNotification(rows, values) {
+  rows.notifications.push({ id: crypto.randomUUID(), carrier_id: null, service_id: null,
+    old_price: null, new_price: null, event_type: 'price_changed',
+    created_at: new Date().toISOString(), read: false, ...values });
+}
+function addCarrierEvent(rows, carrier, eventType) {
+  addNotification(rows, { event_type: eventType, carrier_name: carrier.name });
+}
 window.crudCalls = [];
 function query(table) {
   let action = 'select', values, selected = '*', single = false, head = false, count, limitValue;
@@ -21,7 +31,11 @@ function query(table) {
       window.crudCalls.push({ table, action, values });
       await new Promise(r => setTimeout(r, 70));
       const rows = db();
+      const notificationCount = rows.notifications.length;
       let result = rows[table].filter(row => filters.every(([key, value]) => row[key] === value));
+      if (table === 'notifications' && localStorage.getItem('crud-test-notification-read-fail')) {
+        return resolve({ data: null, error: { message: 'Offline history read failed' } });
+      }
       const fail = localStorage.getItem('crud-test-fail');
       if (action !== 'select' && (role() !== 'admin' || fail)) {
         localStorage.removeItem('crud-test-fail');
@@ -29,15 +43,20 @@ function query(table) {
       }
       if (action === 'insert') {
         result = [{ ...values, id: crypto.randomUUID() }]; rows[table].push(...result);
+        if (table === 'carriers') for (const carrier of result) addCarrierEvent(rows, carrier, 'carrier_added');
       } else if (action === 'update') {
         const previous = result;
         result = result.map(row => ({ ...row, ...values }));
         rows[table] = rows[table].map(row => result.find(r => r.id === row.id) || row);
         if (table === 'services' && Object.hasOwn(values, 'price_per_unit')) {
-          for (const before of previous) rows.notifications.push({
-            id: crypto.randomUUID(), carrier_id: before.carrier_id, service_id: before.id,
-            old_price: before.price_per_unit, new_price: values.price_per_unit
-          });
+          for (const before of previous) if (before.price_per_unit !== values.price_per_unit) addNotification(rows, {
+            carrier_id: before.carrier_id, service_id: before.id,
+            old_price: before.price_per_unit, new_price: values.price_per_unit });
+        }
+        if (table === 'carriers' && Object.hasOwn(values, 'active')) {
+          for (const before of previous) if (before.active !== values.active) {
+            addCarrierEvent(rows, result.find(row => row.id === before.id), values.active ? 'carrier_activated' : 'carrier_deactivated');
+          }
         }
       } else if (action === 'delete') {
         if (table === 'carriers') {
@@ -51,7 +70,10 @@ function query(table) {
         rows[table] = rows[table].filter(row => !removedIds.has(row.id));
         if (table === 'carriers') rows.services = rows.services.filter(row => !removedIds.has(row.carrier_id));
       }
-      if (action !== 'select') store(rows);
+      if (action !== 'select') {
+        store(rows);
+        if (rows.notifications.length > notificationCount) notifyInserted();
+      }
       if (table === 'carriers' && selected.includes('services')) result = result.map(row => ({ ...row, services: rows.services.filter(s => s.carrier_id === row.id) }));
       if (table === 'notifications') result = result.map(row => ({ ...row,
         carriers: rows.carriers.find(carrier => carrier.id === row.carrier_id) || null,
@@ -73,13 +95,17 @@ export const supabase = {
   from(table) { return query(table === 'price_change_notifications' ? 'notifications' : table); },
   auth: { getSession: async () => ({ data: { session: { access_token: 'offline-test' } } }) },
   channel() {
-    return { on() { return this; }, subscribe() { return this; }, unsubscribe() {} };
+    let callback;
+    return { on(_event, _filter, listener) { callback = listener; return this; },
+      subscribe() { notificationListeners.add(callback); return this; },
+      unsubscribe() { notificationListeners.delete(callback); } };
   },
   async rpc(name, args) {
-    window.crudCalls.push({ action: 'rpc' });
+    window.crudCalls.push({ action: 'rpc', name });
     await new Promise(r => setTimeout(r, 150));
     if (role() !== 'admin') return { data: null, error: { code: '42501', message: 'RLS denied' } };
     if (name === 'mark_price_change_notifications_read') {
+      if (localStorage.getItem('crud-test-notification-mark-fail')) return { data: null, error: { message: 'Offline history mark failed' } };
       const rows = db(), ids = new Set(args.notification_ids);
       const changed = [];
       rows.notifications = rows.notifications.map(notification => {
@@ -94,7 +120,9 @@ export const supabase = {
     const rows = db(), carrier = { active: true, ...carrier_data, id: crypto.randomUUID() };
     rows.carriers.push(carrier);
     rows.services.push(...service_data.map(s => ({ ...s, id: crypto.randomUUID(), carrier_id: carrier.id })));
+    addCarrierEvent(rows, carrier, 'carrier_added');
     store(rows);
+    notifyInserted();
     return { data: [carrier], error: null };
   }
 };
